@@ -1,4 +1,4 @@
-import type { WorkoutSession, ExerciseLog, ProgressionSuggestion } from '../types';
+import type { WorkoutSession, ExerciseLog, SetLog, ProgressionSuggestion } from '../types';
 import { EXERCISES } from './exercises';
 
 /**
@@ -157,6 +157,153 @@ export function generateProgressionSuggestions(workouts: WorkoutSession[]): Prog
 export function getLastWorkoutForExercise(workouts: WorkoutSession[], exerciseId: string): ExerciseLog | null {
   const history = getExerciseHistory(workouts, exerciseId);
   return history.length > 0 ? history[0].log : null;
+}
+
+// --- Smart target computation ---
+
+export interface ExerciseTarget {
+  exerciseId: string;
+  targetWeight: number;
+  targetMinReps: number;
+  targetMaxReps: number;
+  lastSession: { weight: number; reps: number }[] | null; // per-set last time
+  action: 'progress' | 'match' | 'deload' | 'first_time';
+  actionMessage: string;
+  /** How many sessions in a row at the same weight */
+  sessionsAtWeight: number;
+  /** Best ever set (weight x reps) for this exercise */
+  bestEver: { weight: number; reps: number; e1rm: number } | null;
+}
+
+/**
+ * Compute a smart target for every exercise in the program.
+ * - No history: first_time, suggest starting conservative
+ * - All sets hit maxReps: progress (bump weight by increment)
+ * - Declining 3 sessions: deload to 85%
+ * - Otherwise: match weight, push for more reps to unlock progression
+ */
+export function computeExerciseTargets(workouts: WorkoutSession[]): ExerciseTarget[] {
+  return EXERCISES.map(exercise => {
+    const history = getExerciseHistory(workouts, exercise.id);
+
+    if (history.length === 0) {
+      return {
+        exerciseId: exercise.id,
+        targetWeight: 0,
+        targetMinReps: exercise.minReps,
+        targetMaxReps: exercise.maxReps,
+        lastSession: null,
+        action: 'first_time' as const,
+        actionMessage: 'First time — start light, nail form',
+        sessionsAtWeight: 0,
+        bestEver: null,
+      };
+    }
+
+    const latest = history[0];
+    const latestWeight = latest.log.sets[0]?.weight ?? 0;
+    const lastSets = latest.log.sets.map(s => ({ weight: s.weight, reps: s.reps }));
+
+    // Best ever set across all history
+    let bestEver: { weight: number; reps: number; e1rm: number } | null = null;
+    for (const h of history) {
+      for (const s of h.log.sets) {
+        const e1rm = estimateOneRepMax(s.weight, s.reps);
+        if (!bestEver || e1rm > bestEver.e1rm) {
+          bestEver = { weight: s.weight, reps: s.reps, e1rm: Math.round(e1rm) };
+        }
+      }
+    }
+
+    // Sessions at same weight
+    let sessionsAtWeight = 0;
+    for (const h of history) {
+      if (h.log.sets[0]?.weight === latestWeight) sessionsAtWeight++;
+      else break;
+    }
+
+    // Deload check
+    if (isDecline(history)) {
+      const deloadWeight = Math.round(latestWeight * 0.85 / 5) * 5;
+      return {
+        exerciseId: exercise.id,
+        targetWeight: Math.max(0, deloadWeight),
+        targetMinReps: exercise.minReps,
+        targetMaxReps: exercise.maxReps,
+        lastSession: lastSets,
+        action: 'deload' as const,
+        actionMessage: `Deload to ${deloadWeight} lbs — focus on form and tempo`,
+        sessionsAtWeight,
+        bestEver,
+      };
+    }
+
+    // Progress: all sets hit top of rep range
+    if (allSetsAtMax(latest.log, exercise.maxReps)) {
+      const newWeight = latestWeight + exercise.incrementLbs;
+      return {
+        exerciseId: exercise.id,
+        targetWeight: newWeight,
+        targetMinReps: exercise.minReps,
+        targetMaxReps: exercise.maxReps,
+        lastSession: lastSets,
+        action: 'progress' as const,
+        actionMessage: `Go up! ${latestWeight} → ${newWeight} lbs (+${exercise.incrementLbs})`,
+        sessionsAtWeight,
+        bestEver,
+      };
+    }
+
+    // Match: same weight, push reps
+    const avgReps = Math.round(lastSets.reduce((s, set) => s + set.reps, 0) / lastSets.length);
+    const repsToGo = exercise.maxReps - avgReps;
+    return {
+      exerciseId: exercise.id,
+      targetWeight: latestWeight,
+      targetMinReps: exercise.minReps,
+      targetMaxReps: exercise.maxReps,
+      lastSession: lastSets,
+      action: 'match' as const,
+      actionMessage: repsToGo > 0
+        ? `${latestWeight} lbs — push for ${repsToGo <= 2 ? `${exercise.maxReps} reps to unlock +${exercise.incrementLbs} lbs` : 'more reps'}`
+        : `${latestWeight} lbs — match or beat last time`,
+      sessionsAtWeight,
+      bestEver,
+    };
+  });
+}
+
+/**
+ * Compare current in-progress set data vs last session for live feedback.
+ * Returns: 'beating' | 'matching' | 'under' | 'no_data'
+ */
+export function compareToLast(
+  currentSets: SetLog[],
+  lastSets: { weight: number; reps: number }[] | null
+): { status: 'beating' | 'matching' | 'under' | 'no_data'; detail: string } {
+  if (!lastSets || lastSets.length === 0) return { status: 'no_data', detail: '' };
+
+  // Only compare sets that have been filled in
+  const filledSets = currentSets.filter(s => s.weight > 0 && s.reps > 0);
+  if (filledSets.length === 0) return { status: 'no_data', detail: '' };
+
+  let currentVol = 0;
+  let lastVol = 0;
+  for (let i = 0; i < filledSets.length; i++) {
+    currentVol += filledSets[i].weight * filledSets[i].reps;
+    if (lastSets[i]) {
+      lastVol += lastSets[i].weight * lastSets[i].reps;
+    }
+  }
+
+  if (lastVol === 0) return { status: 'no_data', detail: '' };
+
+  const diff = currentVol - lastVol;
+  const pct = Math.round((diff / lastVol) * 100);
+
+  if (diff > 0) return { status: 'beating', detail: `+${pct}% vs last` };
+  if (diff === 0) return { status: 'matching', detail: 'Matching last session' };
+  return { status: 'under', detail: `${pct}% vs last` };
 }
 
 /** Calculate estimated 1RM progression for bench press */

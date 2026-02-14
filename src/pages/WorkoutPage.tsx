@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { WorkoutSession, ExerciseLog, SetLog } from '../types';
-import { EXERCISES, SUPERSET_SUGGESTIONS, getExerciseDisplayName, getExercisesForLegPhase, getHotelWorkout } from '../utils/exercises';
+import type { WorkoutSession, ExerciseLog, SetLog, ExerciseDefinition } from '../types';
+import { SUPERSET_SUGGESTIONS, getExerciseDisplayName, getExercisesForLegPhase, getHotelWorkout } from '../utils/exercises';
 import type { HotelExercise } from '../utils/exercises';
-import { getLastWorkoutForExercise, generateProgressionSuggestions } from '../utils/progression';
+import { getLastWorkoutForExercise, generateProgressionSuggestions, computeExerciseTargets, compareToLast } from '../utils/progression';
+import type { ExerciseTarget } from '../utils/progression';
 
 interface WorkoutPageProps {
   workouts: WorkoutSession[];
@@ -12,38 +13,135 @@ interface WorkoutPageProps {
   legPhase?: number;
 }
 
-function SetInput({
-  set,
-  setIndex,
-  onChange,
+// --- Gym exercise card with targets, last session, and live feedback ---
+
+function GymExerciseCard({
+  def,
+  exLog,
+  target,
+  exerciseChoices,
+  isLeg,
+  onSetChange,
 }: {
-  set: SetLog;
-  setIndex: number;
-  onChange: (index: number, field: 'weight' | 'reps', value: number) => void;
+  def: ExerciseDefinition;
+  exLog: ExerciseLog;
+  target: ExerciseTarget | undefined;
+  exerciseChoices: Record<string, string>;
+  isLeg: boolean;
+  onSetChange: (setIndex: number, field: 'weight' | 'reps', value: number) => void;
 }) {
+  const hitTarget = exLog.sets.every(s => s.reps >= def.maxReps && s.weight > 0);
+  const comparison = compareToLast(exLog.sets, target?.lastSession ?? null);
+
+  const actionColor = !target ? 'text-slate-500' :
+    target.action === 'progress' ? 'text-green-400' :
+    target.action === 'deload' ? 'text-yellow-400' :
+    target.action === 'first_time' ? 'text-blue-400' :
+    'text-slate-400';
+
+  const feedbackColor =
+    comparison.status === 'beating' ? 'text-green-400' :
+    comparison.status === 'matching' ? 'text-blue-400' :
+    comparison.status === 'under' ? 'text-yellow-400' :
+    'text-transparent';
+
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-slate-500 w-6">S{setIndex + 1}</span>
-      <input
-        type="number"
-        value={set.weight || ''}
-        onChange={e => onChange(setIndex, 'weight', parseFloat(e.target.value) || 0)}
-        placeholder="lbs"
-        className="w-20 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
-        inputMode="decimal"
-      />
-      <span className="text-slate-500 text-xs">x</span>
-      <input
-        type="number"
-        value={set.reps || ''}
-        onChange={e => onChange(setIndex, 'reps', parseInt(e.target.value) || 0)}
-        placeholder="reps"
-        className="w-16 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
-        inputMode="numeric"
-      />
+    <div
+      className={`bg-slate-800 rounded-xl p-4 space-y-2 ${
+        hitTarget ? 'ring-1 ring-green-500/50' : ''
+      } ${isLeg ? 'border-l-2 border-l-teal-600/50' : ''}`}
+    >
+      {/* Exercise name + rep scheme */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-medium text-sm">
+            {getExerciseDisplayName(def.id, exerciseChoices)}
+          </h3>
+          {def.alternativeName && !exerciseChoices[def.id] && (
+            <span className="text-xs text-slate-500">or {def.alternativeName}</span>
+          )}
+        </div>
+        <div className="text-xs text-slate-500">
+          {def.sets}x{def.minReps}-{def.maxReps}
+          {def.perLeg ? '/leg' : ''}
+        </div>
+      </div>
+
+      {/* Target action banner */}
+      {target && (
+        <div className={`text-xs font-medium ${actionColor} flex items-center justify-between`}>
+          <span>{target.actionMessage}</span>
+          {target.sessionsAtWeight >= 4 && target.action === 'match' && (
+            <span className="text-yellow-500 text-[10px]">4+ wks same weight</span>
+          )}
+        </div>
+      )}
+
+      {/* Last session reference */}
+      {target?.lastSession && (
+        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+          <span>Last:</span>
+          {target.lastSession.map((s, i) => (
+            <span key={i} className="bg-slate-700/50 rounded px-1.5 py-0.5">
+              {s.weight}x{s.reps}
+            </span>
+          ))}
+          {target.bestEver && target.bestEver.weight > (target.lastSession[0]?.weight ?? 0) && (
+            <span className="text-purple-400 ml-auto">PR: {target.bestEver.weight}x{target.bestEver.reps}</span>
+          )}
+        </div>
+      )}
+
+      {/* Hit target celebration */}
+      {hitTarget && (
+        <div className="text-xs text-green-400 font-medium">
+          All sets at max reps! Add weight next time.
+        </div>
+      )}
+
+      {/* Set inputs */}
+      <div className="space-y-1.5">
+        {exLog.sets.map((set, setIdx) => {
+          const lastSet = target?.lastSession?.[setIdx];
+          const isBetter = lastSet && set.weight > 0 && set.reps > 0 &&
+            (set.weight * set.reps) > (lastSet.weight * lastSet.reps);
+          return (
+            <div key={setIdx} className="flex items-center gap-2">
+              <span className={`text-xs w-6 ${isLeg ? 'text-teal-500' : 'text-slate-500'}`}>S{setIdx + 1}</span>
+              <input
+                type="number"
+                value={set.weight || ''}
+                onChange={e => onSetChange(setIdx, 'weight', parseFloat(e.target.value) || 0)}
+                placeholder={target?.targetWeight ? String(target.targetWeight) : 'lbs'}
+                className="w-20 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                inputMode="decimal"
+              />
+              <span className="text-slate-500 text-xs">x</span>
+              <input
+                type="number"
+                value={set.reps || ''}
+                onChange={e => onSetChange(setIdx, 'reps', parseInt(e.target.value) || 0)}
+                placeholder={target ? `${target.targetMinReps}-${target.targetMaxReps}` : 'reps'}
+                className="w-16 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                inputMode="numeric"
+              />
+              {isBetter && <span className="text-green-400 text-xs">^</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Live comparison */}
+      {comparison.status !== 'no_data' && (
+        <div className={`text-[10px] font-medium ${feedbackColor} text-right`}>
+          {comparison.detail}
+        </div>
+      )}
     </div>
   );
 }
+
+// --- Hotel set input ---
 
 function HotelSetInput({
   exercise,
@@ -94,6 +192,8 @@ function HotelSetInput({
   );
 }
 
+// --- Main WorkoutPage ---
+
 export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }: WorkoutPageProps) {
   const [mode, setMode] = useState<'gym' | 'hotel'>('gym');
   const [hotelEquipment, setHotelEquipment] = useState<'none' | 'band' | 'dumbbell'>('none');
@@ -111,14 +211,23 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
   const activeExercises = getExercisesForLegPhase(legPhase);
   const hotelWorkout = getHotelWorkout(hotelEquipment, legPhase);
 
-  // Initialize gym exercises with last workout's weights
+  // Compute smart targets from history
+  const targets = useMemo(() => computeExerciseTargets(workouts), [workouts]);
+  const targetMap = useMemo(() => {
+    const m: Record<string, ExerciseTarget> = {};
+    for (const t of targets) m[t.exerciseId] = t;
+    return m;
+  }, [targets]);
+
+  // Initialize gym exercises — use target weight (smart) instead of just last weight
   useEffect(() => {
     const initial: ExerciseLog[] = activeExercises.map(ex => {
+      const target = targetMap[ex.id];
       const last = getLastWorkoutForExercise(workouts, ex.id);
       const sets: SetLog[] = [];
       for (let i = 0; i < ex.sets; i++) {
         sets.push({
-          weight: last?.sets[i]?.weight ?? 0,
+          weight: target?.targetWeight ?? last?.sets[i]?.weight ?? 0,
           reps: 0,
         });
       }
@@ -164,8 +273,7 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
   }, [restActive, restTimer]);
 
   const handleStartSession = () => {
-    const now = new Date().toISOString();
-    setStartTime(now);
+    setStartTime(new Date().toISOString());
     setIsActive(true);
     setSaved(false);
   };
@@ -201,7 +309,6 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
       };
       onSave(workout);
     } else {
-      // Convert hotel logs to ExerciseLog format
       const hotelExercises: ExerciseLog[] = Object.entries(hotelLogs)
         .filter(([, sets]) => sets.some(s => s.reps > 0))
         .map(([exerciseId, sets]) => ({ exerciseId, sets }));
@@ -236,13 +343,6 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Check if exercise hit progression target
-  const hitTarget = (exLog: ExerciseLog, exerciseId: string): boolean => {
-    const def = EXERCISES.find(e => e.id === exerciseId);
-    if (!def) return false;
-    return exLog.sets.every(s => s.reps >= def.maxReps && s.weight > 0);
-  };
-
   // Post-workout suggestions (gym only)
   const suggestions = saved && mode === 'gym' ? generateProgressionSuggestions([
     ...workouts,
@@ -256,14 +356,6 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
       endTime: null,
     },
   ]) : [];
-
-  // Split gym exercises into upper/lower body
-  const upperExercises = exercises.filter((_, i) =>
-    activeExercises[i] && activeExercises[i].muscleGroup !== 'legs'
-  );
-  const lowerExercises = exercises.filter((_, i) =>
-    activeExercises[i] && activeExercises[i].muscleGroup === 'legs'
-  );
 
   return (
     <div className="space-y-4 pb-4">
@@ -365,101 +457,40 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
           )}
 
           {/* Upper Body Exercises */}
-          {upperExercises.length > 0 && (
-            <div className="text-xs text-slate-400 font-medium px-1">Upper Body</div>
-          )}
-          {upperExercises.map((exLog) => {
-            // Find the original index in the full exercise array
-            const exIdx = exercises.indexOf(exLog);
+          <div className="text-xs text-slate-400 font-medium px-1">Upper Body</div>
+          {exercises.map((exLog, exIdx) => {
             const def = activeExercises[exIdx];
-            if (!def) return null;
-            const isHit = hitTarget(exLog, def.id);
+            if (!def || def.muscleGroup === 'legs') return null;
             return (
-              <div
+              <GymExerciseCard
                 key={def.id}
-                className={`bg-slate-800 rounded-xl p-4 space-y-2 ${
-                  isHit ? 'ring-1 ring-green-500/50' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium text-sm">
-                      {getExerciseDisplayName(def.id, exerciseChoices)}
-                    </h3>
-                    {def.alternativeName && !exerciseChoices[def.id] && (
-                      <span className="text-xs text-slate-500">or {def.alternativeName}</span>
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {def.sets}x{def.minReps}-{def.maxReps}
-                    {def.perLeg ? '/leg' : ''}
-                  </div>
-                </div>
-                {isHit && (
-                  <div className="text-xs text-green-400 font-medium">
-                    Hit target! Ready to progress.
-                  </div>
-                )}
-                <div className="space-y-1.5">
-                  {exLog.sets.map((set, setIdx) => (
-                    <SetInput
-                      key={setIdx}
-                      set={set}
-                      setIndex={setIdx}
-                      onChange={(si, field, val) => handleSetChange(exIdx, si, field, val)}
-                    />
-                  ))}
-                </div>
-              </div>
+                def={def}
+                exLog={exLog}
+                target={targetMap[def.id]}
+                exerciseChoices={exerciseChoices}
+                isLeg={false}
+                onSetChange={(si, field, val) => handleSetChange(exIdx, si, field, val)}
+              />
             );
           })}
 
           {/* Lower Body Exercises */}
-          {lowerExercises.length > 0 && (
+          {exercises.some((_, i) => activeExercises[i]?.muscleGroup === 'legs') && (
             <div className="text-xs text-teal-400 font-medium px-1">Lower Body</div>
           )}
-          {lowerExercises.map((exLog) => {
-            const exIdx = exercises.indexOf(exLog);
+          {exercises.map((exLog, exIdx) => {
             const def = activeExercises[exIdx];
-            if (!def) return null;
-            const isHit = hitTarget(exLog, def.id);
+            if (!def || def.muscleGroup !== 'legs') return null;
             return (
-              <div
+              <GymExerciseCard
                 key={def.id}
-                className={`bg-slate-800 rounded-xl p-4 space-y-2 border-l-2 border-l-teal-600/50 ${
-                  isHit ? 'ring-1 ring-green-500/50' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium text-sm">
-                      {getExerciseDisplayName(def.id, exerciseChoices)}
-                    </h3>
-                    {def.alternativeName && !exerciseChoices[def.id] && (
-                      <span className="text-xs text-slate-500">or {def.alternativeName}</span>
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {def.sets}x{def.minReps}-{def.maxReps}
-                    {def.perLeg ? '/leg' : ''}
-                  </div>
-                </div>
-                {isHit && (
-                  <div className="text-xs text-green-400 font-medium">
-                    Hit target! Ready to progress.
-                  </div>
-                )}
-                <div className="space-y-1.5">
-                  {exLog.sets.map((set, setIdx) => (
-                    <SetInput
-                      key={setIdx}
-                      set={set}
-                      setIndex={setIdx}
-                      onChange={(si, field, val) => handleSetChange(exIdx, si, field, val)}
-                    />
-                  ))}
-                </div>
-              </div>
+                def={def}
+                exLog={exLog}
+                target={targetMap[def.id]}
+                exerciseChoices={exerciseChoices}
+                isLeg={true}
+                onSetChange={(si, field, val) => handleSetChange(exIdx, si, field, val)}
+              />
             );
           })}
         </>
@@ -468,7 +499,6 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
       {/* ========== HOTEL MODE ========== */}
       {mode === 'hotel' && (
         <>
-          {/* Equipment Selection */}
           {!isActive && !saved && (
             <div className="bg-slate-800 rounded-xl p-4">
               <div className="text-xs text-slate-400 mb-2">Equipment available?</div>
@@ -495,15 +525,10 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
             </div>
           )}
 
-          {/* Hotel Exercises */}
           {hotelWorkout.exercises.map(ex => {
             const groupColor: Record<string, string> = {
-              chest: 'text-red-400',
-              back: 'text-blue-400',
-              shoulders: 'text-yellow-400',
-              arms: 'text-purple-400',
-              legs: 'text-green-400',
-              core: 'text-cyan-400',
+              chest: 'text-red-400', back: 'text-blue-400', shoulders: 'text-yellow-400',
+              arms: 'text-purple-400', legs: 'text-green-400', core: 'text-cyan-400',
             };
             return (
               <div key={ex.id} className="bg-slate-800 rounded-xl p-4 space-y-2">
@@ -525,7 +550,6 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
             );
           })}
 
-          {/* Hotel Tips */}
           {isActive && (
             <div className="bg-orange-900/10 rounded-xl p-3 text-xs text-slate-400 space-y-1">
               {hotelWorkout.notes.map((n, i) => (
@@ -552,7 +576,7 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
       {/* Post-Workout Suggestions (gym only) */}
       {saved && mode === 'gym' && suggestions.length > 0 && (
         <div className="bg-slate-800 rounded-xl p-4 space-y-3">
-          <h3 className="font-semibold text-blue-400">Progression Suggestions</h3>
+          <h3 className="font-semibold text-blue-400">Next Session Preview</h3>
           {suggestions
             .filter(s => s.type !== 'form')
             .slice(0, 5)
