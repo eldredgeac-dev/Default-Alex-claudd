@@ -8,6 +8,8 @@ export interface ExerciseDefinition {
   perLeg?: boolean;
   incrementLbs: number; // smallest weight increment for progression
   isMainLift?: boolean; // bench press gets special progression
+  muscleGroup: 'back' | 'chest' | 'shoulders' | 'arms' | 'legs' | 'traps';
+  priority: 'core' | 'important' | 'accessory'; // upper body focus ordering
 }
 
 export interface SetLog {
@@ -28,6 +30,7 @@ export interface WorkoutSession {
   durationMinutes: number | null;
   startTime: string | null; // ISO timestamp
   endTime: string | null;
+  workoutType?: 'gym' | 'hotel'; // track which type of workout
 }
 
 export interface BodyMetric {
@@ -44,6 +47,7 @@ export interface UserConfig {
   targetProtein: number;
   exerciseChoices: Record<string, string>; // exerciseId -> chosen variant name
   sessionTargetMinutes: number;
+  legPhase: number; // 1-4: gradual leg volume ramp (1=minimal, 4=full)
 }
 
 export interface ProgressionSuggestion {

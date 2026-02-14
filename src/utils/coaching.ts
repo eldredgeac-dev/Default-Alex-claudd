@@ -1,5 +1,5 @@
 import type { WorkoutSession, BodyMetric, UserConfig } from '../types';
-import { EXERCISES } from './exercises';
+import { LEG_PHASES, getExercisesForLegPhase } from './exercises';
 import {
   getExerciseHistory,
   estimateOneRepMax,
@@ -10,7 +10,7 @@ import { calculateTrendWeight, averageProtein } from './bodyMetrics';
 // --- Types ---
 
 export interface CoachingAdvice {
-  category: 'workout_plan' | 'recovery' | 'nutrition' | 'technique' | 'mindset' | 'schedule';
+  category: 'workout_plan' | 'recovery' | 'nutrition' | 'technique' | 'mindset' | 'schedule' | 'travel' | 'legs';
   title: string;
   message: string;
   priority: 'high' | 'medium' | 'low';
@@ -105,10 +105,11 @@ export function generateWeeklySchedule(workouts: WorkoutSession[]): WeeklySchedu
 
 // --- Next workout plan generator ---
 
-export function generateNextWorkoutPlan(workouts: WorkoutSession[]): NextWorkoutPlan {
+export function generateNextWorkoutPlan(workouts: WorkoutSession[], legPhase: number = 1): NextWorkoutPlan {
   const suggestions = generateProgressionSuggestions(workouts);
+  const activeExercises = getExercisesForLegPhase(legPhase);
 
-  const exercises = EXERCISES.map(ex => {
+  const exercises = activeExercises.map(ex => {
     const history = getExerciseHistory(workouts, ex.id);
     const lastLog = history[0]?.log;
     const lastWeight = lastLog?.sets[0]?.weight ?? 0;
@@ -453,6 +454,45 @@ export function generateCoachingAdvice(
     priority: 'low',
     icon: '//',
   });
+
+  // --- TRAVEL ---
+  advice.push({
+    category: 'travel',
+    title: 'Travel Doesn\'t Mean Off',
+    message: 'When you travel, switch to the Hotel Workout tab. A bodyweight session in your room beats skipping entirely. Upper body focus translates perfectly — push-ups, rows, and pike press keep the stimulus going. Pack a resistance band ($12, weighs nothing) to double your options.',
+    priority: 'low',
+    icon: '//',
+  });
+
+  // --- LEG PROGRESSION ---
+  const currentLegPhase = LEG_PHASES.find(p => p.phase === (config.legPhase ?? 1));
+  const nextLegPhase = LEG_PHASES.find(p => p.phase === (config.legPhase ?? 1) + 1);
+
+  if (currentLegPhase) {
+    advice.push({
+      category: 'legs',
+      title: `Legs: ${currentLegPhase.name} Phase`,
+      message: `Current: ${currentLegPhase.exercises} ${nextLegPhase ? `After ${currentLegPhase.weeksToProgress} weeks at this level, consider moving to Phase ${nextLegPhase.phase} (${nextLegPhase.name}): ${nextLegPhase.exercises}` : 'You\'re at the full program. Nice work building up to this.'}`,
+      priority: 'low',
+      icon: '//',
+    });
+  }
+
+  // Check if user has been consistent enough to suggest leg phase increase
+  if (nextLegPhase && sorted.length >= (currentLegPhase?.weeksToProgress ?? 4) * 3) {
+    // They've been training long enough — gentle nudge
+    const legExHistory = getExerciseHistory(workouts, 'rdl');
+    const legConsistent = legExHistory.length >= (currentLegPhase?.weeksToProgress ?? 4) * 2;
+    if (legConsistent) {
+      advice.push({
+        category: 'legs',
+        title: 'Ready for More Legs?',
+        message: `You've been consistent with your current leg work. When you're ready, bump to Phase ${nextLegPhase.phase} (${nextLegPhase.name}): ${nextLegPhase.description}. No rush — but your body can handle it now.`,
+        priority: 'medium',
+        icon: '//',
+      });
+    }
+  }
 
   return advice;
 }

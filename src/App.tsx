@@ -34,7 +34,7 @@ function App() {
           <DashboardPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} />
         )}
         {activeTab === 'coach' && (
-          <CoachPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} />
+          <CoachPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} onUpdateConfig={updateConfig} />
         )}
         {activeTab === 'workout' && (
           <WorkoutPage

@@ -18,6 +18,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       targetProtein: parseInt(protein) || 180,
       exerciseChoices: {},
       sessionTargetMinutes: parseInt(sessionTarget) || 45,
+      legPhase: 1,
     });
   };
 

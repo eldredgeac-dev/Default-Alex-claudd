@@ -12,6 +12,7 @@ const DEFAULT_CONFIG: UserConfig = {
   targetProtein: 180,
   exerciseChoices: {},
   sessionTargetMinutes: 45,
+  legPhase: 1,
 };
 
 function getItem<T>(key: string, fallback: T): T {
