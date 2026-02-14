@@ -41,6 +41,7 @@ function App() {
             workouts={workouts}
             onSave={addWorkout}
             exerciseChoices={config.exerciseChoices}
+            legPhase={config.legPhase ?? 1}
           />
         )}
         {activeTab === 'body' && (

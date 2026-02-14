@@ -140,9 +140,15 @@ export function HistoryPage({
           {sortedWorkouts.map(w => (
             <details key={w.id} className="border border-slate-700 rounded-lg">
               <summary className="px-3 py-2 cursor-pointer hover:bg-slate-700/50 flex justify-between items-center text-sm">
-                <span>{w.date}</span>
+                <span className="flex items-center gap-1.5">
+                  {w.date}
+                  {w.workoutType === 'hotel' && (
+                    <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-orange-900/50 text-orange-300">HOTEL</span>
+                  )}
+                </span>
                 <span className="text-xs text-slate-400">
-                  {(sessionVolume(w) / 1000).toFixed(1)}k vol
+                  {w.workoutType !== 'hotel' && <>{(sessionVolume(w) / 1000).toFixed(1)}k vol &middot; </>}
+                  {w.exercises.length} ex
                   {w.durationMinutes ? ` · ${w.durationMinutes}min` : ''}
                 </span>
               </summary>

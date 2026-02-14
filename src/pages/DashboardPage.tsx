@@ -91,12 +91,15 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
   const lastWorkout = sortedWorkouts[0];
   const lastVolume = lastWorkout ? sessionVolume(lastWorkout) : null;
 
+  const gymCount = workouts.filter(w => w.workoutType !== 'hotel').length;
+  const hotelCount = workouts.filter(w => w.workoutType === 'hotel').length;
+
   return (
     <div className="space-y-4 pb-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Lift & Lean</h1>
         <div className="text-xs text-slate-500">
-          {workouts.length} workouts logged
+          {gymCount} gym{hotelCount > 0 ? ` + ${hotelCount} hotel` : ''} sessions
         </div>
       </div>
 
@@ -182,9 +185,15 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
           <h3 className="text-sm font-semibold text-slate-300">Recent Workouts</h3>
           {sortedWorkouts.slice(0, 5).map(w => (
             <div key={w.id} className="flex justify-between text-xs py-1 border-b border-slate-700 last:border-0">
-              <span className="text-slate-400">{w.date}</span>
+              <span className="text-slate-400 flex items-center gap-1.5">
+                {w.date}
+                {w.workoutType === 'hotel' && (
+                  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-orange-900/50 text-orange-300">HOTEL</span>
+                )}
+              </span>
               <span className="text-slate-300">
-                {w.exercises.length} exercises &middot; {(sessionVolume(w) / 1000).toFixed(1)}k vol
+                {w.exercises.length} exercises
+                {w.workoutType !== 'hotel' && <>&middot; {(sessionVolume(w) / 1000).toFixed(1)}k vol</>}
                 {w.durationMinutes ? ` · ${w.durationMinutes}min` : ''}
               </span>
             </div>
