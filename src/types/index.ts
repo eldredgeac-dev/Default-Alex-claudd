@@ -64,4 +64,4 @@ export interface VerdictData {
   suggestions: string[];
 }
 
-export type TabId = 'dashboard' | 'workout' | 'body' | 'charts' | 'history';
+export type TabId = 'dashboard' | 'coach' | 'workout' | 'body' | 'charts' | 'history';

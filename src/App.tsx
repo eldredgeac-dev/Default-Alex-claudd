@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { WorkoutPage } from './pages/WorkoutPage';
 import { BodyPage } from './pages/BodyPage';
 import { ChartsPage } from './pages/ChartsPage';
+import { CoachPage } from './pages/CoachPage';
 import { HistoryPage } from './pages/HistoryPage';
 
 function App() {
@@ -31,6 +32,9 @@ function App() {
       <main className="flex-1 max-w-lg mx-auto w-full px-4 pt-4 pb-20">
         {activeTab === 'dashboard' && (
           <DashboardPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} />
+        )}
+        {activeTab === 'coach' && (
+          <CoachPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} />
         )}
         {activeTab === 'workout' && (
           <WorkoutPage
