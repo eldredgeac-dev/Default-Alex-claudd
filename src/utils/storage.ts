@@ -13,6 +13,7 @@ const DEFAULT_CONFIG: UserConfig = {
   exerciseChoices: {},
   sessionTargetMinutes: 45,
   legPhase: 1,
+  goalMode: 'cutting',
 };
 
 function getItem<T>(key: string, fallback: T): T {

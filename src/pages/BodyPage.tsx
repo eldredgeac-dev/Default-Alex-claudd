@@ -1,14 +1,49 @@
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { BodyMetric, UserConfig } from '../types';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine,
+} from 'recharts';
+import type { BodyMetric, UserConfig, GoalMode } from '../types';
+import { calculateTrendWeight, weeklyWeightChange, averageProtein } from '../utils/bodyMetrics';
 
 interface BodyPageProps {
   bodyMetrics: BodyMetric[];
   config: UserConfig;
   onSave: (metric: BodyMetric) => void;
+  onUpdateConfig?: (config: UserConfig) => void;
 }
 
-export function BodyPage({ bodyMetrics, config, onSave }: BodyPageProps) {
+const GOAL_CONFIG: Record<GoalMode, {
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  idealWeeklyLbs: string;
+  guidance: string;
+  proteinNote: string;
+}> = {
+  cutting: {
+    label: 'Cutting',
+    color: 'text-red-400',
+    bgColor: 'bg-red-900/30',
+    borderColor: 'border-red-700',
+    idealWeeklyLbs: '-0.5 to -1.0',
+    guidance: 'Losing 0.5-1 lb/week preserves muscle while shedding fat. Faster than that risks muscle loss. Slower is fine — patience wins.',
+    proteinNote: 'Keep protein HIGH while cutting (180g+). This is what saves your muscle in a deficit.',
+  },
+  maintaining: {
+    label: 'Maintaining',
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-900/30',
+    borderColor: 'border-blue-700',
+    idealWeeklyLbs: '±0.5',
+    guidance: 'Weight should stay within ±0.5 lbs/week on average. Daily fluctuations of 1-3 lbs are normal — trust the trend, not the day.',
+    proteinNote: 'Protein at 160g+ supports recovery and keeps you full. No need to be as aggressive as cutting.',
+  },
+};
+
+export function BodyPage({ bodyMetrics, config, onSave, onUpdateConfig }: BodyPageProps) {
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [weight, setWeight] = useState('');
@@ -16,18 +51,60 @@ export function BodyPage({ bodyMetrics, config, onSave }: BodyPageProps) {
   const [protein, setProtein] = useState('');
   const [saved, setSaved] = useState(false);
 
+  const goalMode = config.goalMode ?? 'cutting';
+  const goalCfg = GOAL_CONFIG[goalMode];
+
+  // Compute trends
+  const trendData = calculateTrendWeight(bodyMetrics);
+  const weeklyChange = weeklyWeightChange(trendData);
+  const avgProt = averageProtein(bodyMetrics);
+  const currentTrend = trendData.length > 0 ? trendData[trendData.length - 1].trend : null;
+  const latestActual = trendData.length > 0 ? trendData[trendData.length - 1].actual : null;
+
+  // 7-day and 30-day rolling averages
+  const last7 = trendData.slice(-7);
+  const last30 = trendData.slice(-30);
+  const avg7 = last7.length > 0
+    ? Math.round((last7.reduce((s, d) => s + d.actual, 0) / last7.length) * 10) / 10
+    : null;
+  const avg30 = last30.length > 0
+    ? Math.round((last30.reduce((s, d) => s + d.actual, 0) / last30.length) * 10) / 10
+    : null;
+
+  // Chart data — last 30 entries
+  const chartData = trendData.slice(-30).map(d => ({
+    date: d.date.slice(5),
+    actual: d.actual,
+    trend: d.trend,
+  }));
+
+  // Rate assessment
+  const rateStatus = (): { label: string; color: string } => {
+    if (weeklyChange == null) return { label: 'Need more data', color: 'text-slate-500' };
+    if (goalMode === 'cutting') {
+      if (weeklyChange <= -0.5 && weeklyChange >= -1.2) return { label: 'On track', color: 'text-green-400' };
+      if (weeklyChange > 0) return { label: 'Gaining — adjust calories', color: 'text-red-400' };
+      if (weeklyChange > -0.3) return { label: 'Slow — tighten up or be patient', color: 'text-yellow-400' };
+      if (weeklyChange < -1.5) return { label: 'Too fast — eat more', color: 'text-yellow-400' };
+      return { label: 'Good pace', color: 'text-green-400' };
+    } else {
+      if (Math.abs(weeklyChange) <= 0.5) return { label: 'Stable — on track', color: 'text-green-400' };
+      if (weeklyChange > 0.5) return { label: 'Drifting up — watch intake', color: 'text-yellow-400' };
+      return { label: 'Dropping — eat more', color: 'text-yellow-400' };
+    }
+  };
+
+  const rate = rateStatus();
+
   const handleSave = () => {
     if (!weight && !waist && !protein) return;
-
-    const metric: BodyMetric = {
+    onSave({
       id: uuidv4(),
       date,
       weight: weight ? parseFloat(weight) : undefined,
       waist: waist ? parseFloat(waist) : undefined,
       protein: protein ? parseInt(protein) : undefined,
-    };
-
-    onSave(metric);
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     setWeight('');
@@ -35,17 +112,124 @@ export function BodyPage({ bodyMetrics, config, onSave }: BodyPageProps) {
     setProtein('');
   };
 
-  // Recent entries
+  const handleModeChange = (mode: GoalMode) => {
+    if (onUpdateConfig) {
+      onUpdateConfig({ ...config, goalMode: mode });
+    }
+  };
+
   const recentMetrics = [...bodyMetrics]
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 14);
 
   return (
     <div className="space-y-4 pb-4">
-      <h2 className="text-lg font-bold">Log Body Metrics</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Body Tracking</h2>
+        {currentTrend && (
+          <span className="text-xs text-slate-400">Trend: {currentTrend} lbs</span>
+        )}
+      </div>
+
+      {/* Goal Mode Toggle */}
+      <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
+        <button
+          onClick={() => handleModeChange('cutting')}
+          className={`flex-1 text-xs py-2 rounded-md font-medium transition-colors ${
+            goalMode === 'cutting' ? 'bg-red-600 text-white' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Cutting
+        </button>
+        <button
+          onClick={() => handleModeChange('maintaining')}
+          className={`flex-1 text-xs py-2 rounded-md font-medium transition-colors ${
+            goalMode === 'maintaining' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Maintaining
+        </button>
+      </div>
+
+      {/* Weight Trend Chart */}
+      {chartData.length > 2 && (
+        <div className={`${goalCfg.bgColor} border ${goalCfg.borderColor} rounded-xl p-4`}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold">Weight Trend (30d)</h3>
+            <div className={`text-xs font-medium ${rate.color}`}>{rate.label}</div>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 9, fill: '#94a3b8' }} width={35} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 11 }}
+                labelStyle={{ color: '#94a3b8' }}
+              />
+              <Line type="monotone" dataKey="actual" stroke="#64748b" strokeWidth={1} dot={{ r: 1.5, fill: '#64748b' }} name="Scale" />
+              <Line type="monotone" dataKey="trend" stroke={goalMode === 'cutting' ? '#ef4444' : '#3b82f6'} strokeWidth={2.5} dot={false} name="Trend" />
+              {avg30 && (
+                <ReferenceLine y={avg30} stroke="#6b7280" strokeDasharray="4 4" />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-slate-800 rounded-xl p-3">
+          <div className="text-[10px] text-slate-500">Weekly rate</div>
+          <div className={`text-lg font-bold ${
+            weeklyChange != null
+              ? (goalMode === 'cutting'
+                ? (weeklyChange < 0 ? 'text-green-400' : 'text-red-400')
+                : (Math.abs(weeklyChange) <= 0.5 ? 'text-green-400' : 'text-yellow-400'))
+              : 'text-slate-500'
+          }`}>
+            {weeklyChange != null ? `${weeklyChange > 0 ? '+' : ''}${weeklyChange}` : '--'}
+          </div>
+          <div className="text-[10px] text-slate-500">lbs/wk</div>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-3">
+          <div className="text-[10px] text-slate-500">7-day avg</div>
+          <div className="text-lg font-bold text-slate-200">
+            {avg7 ?? '--'}
+          </div>
+          <div className="text-[10px] text-slate-500">
+            {avg7 && avg30 && avg7 !== avg30
+              ? `30d: ${avg30}`
+              : 'lbs'
+            }
+          </div>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-3">
+          <div className="text-[10px] text-slate-500">Avg protein</div>
+          <div className={`text-lg font-bold ${
+            avgProt != null && avgProt >= config.targetProtein ? 'text-green-400'
+            : avgProt != null && avgProt >= config.targetProtein * 0.85 ? 'text-yellow-400'
+            : avgProt != null ? 'text-red-400' : 'text-slate-500'
+          }`}>
+            {avgProt ?? '--'}
+          </div>
+          <div className="text-[10px] text-slate-500">g/day (7d)</div>
+        </div>
+      </div>
+
+      {/* Mode Guidance */}
+      <div className={`${goalCfg.bgColor} border ${goalCfg.borderColor} rounded-xl p-4 space-y-2`}>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-bold ${goalCfg.color}`}>{goalCfg.label.toUpperCase()} MODE</span>
+          <span className="text-xs text-slate-500">Target: {goalCfg.idealWeeklyLbs} lbs/wk</span>
+        </div>
+        <p className="text-xs text-slate-300 leading-relaxed">{goalCfg.guidance}</p>
+        <p className="text-xs text-slate-400">{goalCfg.proteinNote}</p>
+      </div>
 
       {/* Quick Entry */}
       <div className="bg-slate-800 rounded-xl p-4 space-y-4">
+        <h3 className="text-sm font-semibold text-slate-300">Log Today</h3>
         <div>
           <label className="block text-xs text-slate-400 mb-1">Date</label>
           <input
@@ -63,7 +247,7 @@ export function BodyPage({ bodyMetrics, config, onSave }: BodyPageProps) {
               type="number"
               value={weight}
               onChange={e => setWeight(e.target.value)}
-              placeholder="--"
+              placeholder={latestActual ? String(latestActual) : '--'}
               step="0.1"
               className="w-full bg-slate-700 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
               inputMode="decimal"
@@ -107,10 +291,11 @@ export function BodyPage({ bodyMetrics, config, onSave }: BodyPageProps) {
         </button>
       </div>
 
-      {/* Target reminder */}
-      <div className="bg-slate-800/50 rounded-xl p-3 text-xs text-slate-400">
-        Protein target: <span className="text-blue-400 font-medium">{config.targetProtein}g/day</span>
-        {' · '}Daily weigh-in recommended for trend accuracy
+      {/* Weigh-in Tips */}
+      <div className="bg-slate-800/50 rounded-xl p-3 text-xs text-slate-400 space-y-1">
+        <div>Weigh yourself first thing in the morning, after using the bathroom, before eating/drinking.</div>
+        <div>Daily fluctuations are normal (water, sodium, stress). The <span className={goalCfg.color}>trend line</span> is what matters.</div>
+        <div>Protein target: <span className="text-blue-400 font-medium">{config.targetProtein}g/day</span></div>
       </div>
 
       {/* Recent Entries */}

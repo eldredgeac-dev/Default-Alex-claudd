@@ -45,7 +45,7 @@ function App() {
           />
         )}
         {activeTab === 'body' && (
-          <BodyPage bodyMetrics={bodyMetrics} config={config} onSave={addBodyMetric} />
+          <BodyPage bodyMetrics={bodyMetrics} config={config} onSave={addBodyMetric} onUpdateConfig={updateConfig} />
         )}
         {activeTab === 'charts' && (
           <ChartsPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} />

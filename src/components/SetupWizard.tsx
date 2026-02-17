@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { UserConfig } from '../types';
+import type { UserConfig, GoalMode } from '../types';
 
 interface SetupWizardProps {
   onComplete: (config: UserConfig) => void;
@@ -10,6 +10,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [weight, setWeight] = useState('');
   const [protein, setProtein] = useState('180');
   const [sessionTarget, setSessionTarget] = useState('45');
+  const [goalMode, setGoalMode] = useState<GoalMode>('cutting');
 
   const handleFinish = () => {
     onComplete({
@@ -19,6 +20,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       exerciseChoices: {},
       sessionTargetMinutes: parseInt(sessionTarget) || 45,
       legPhase: 1,
+      goalMode,
     });
   };
 
@@ -80,6 +82,42 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
           {step === 2 && (
             <>
+              <h2 className="text-lg font-semibold">What's your current goal?</h2>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setGoalMode('cutting')}
+                  className={`w-full rounded-lg p-3 text-left transition-colors ${
+                    goalMode === 'cutting'
+                      ? 'bg-red-900/40 border-2 border-red-500'
+                      : 'bg-slate-700 border-2 border-transparent hover:border-slate-600'
+                  }`}
+                >
+                  <div className="font-medium text-sm">Cutting (Lose Fat)</div>
+                  <div className="text-xs text-slate-400">Lose weight while keeping muscle. Expect 0.5-1 lb/week loss.</div>
+                </button>
+                <button
+                  onClick={() => setGoalMode('maintaining')}
+                  className={`w-full rounded-lg p-3 text-left transition-colors ${
+                    goalMode === 'maintaining'
+                      ? 'bg-blue-900/40 border-2 border-blue-500'
+                      : 'bg-slate-700 border-2 border-transparent hover:border-slate-600'
+                  }`}
+                >
+                  <div className="font-medium text-sm">Maintaining</div>
+                  <div className="text-xs text-slate-400">Hold current weight, build strength. Focus on progressive overload.</div>
+                </button>
+              </div>
+              <button
+                onClick={() => setStep(3)}
+                className="w-full bg-blue-600 hover:bg-blue-700 rounded-lg py-3 font-medium transition-colors"
+              >
+                Next
+              </button>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
               <h2 className="text-lg font-semibold">Session time target?</h2>
               <div className="flex items-center gap-2">
                 <input
@@ -101,7 +139,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           )}
 
           <div className="flex justify-center gap-2 pt-2">
-            {[0, 1, 2].map(i => (
+            {[0, 1, 2, 3].map(i => (
               <div
                 key={i}
                 className={`w-2 h-2 rounded-full ${i <= step ? 'bg-blue-400' : 'bg-slate-600'}`}

@@ -1,4 +1,4 @@
-import type { BodyMetric, VerdictData } from '../types';
+import type { BodyMetric, VerdictData, GoalMode } from '../types';
 import type { WorkoutSession } from '../types';
 import { sessionVolume, getExerciseHistory, estimateOneRepMax } from './progression';
 
@@ -96,7 +96,8 @@ export function getLatestWaist(metrics: BodyMetric[]): { current: number; fourWe
 export function generateVerdict(
   workouts: WorkoutSession[],
   metrics: BodyMetric[],
-  targetProtein: number
+  targetProtein: number,
+  goalMode: GoalMode = 'cutting'
 ): VerdictData {
   const trendData = calculateTrendWeight(metrics);
 
@@ -156,7 +157,7 @@ export function generateVerdict(
 
   const avgProt = averageProtein(metrics);
 
-  // Determine status
+  // Determine status — logic changes based on goal mode
   const suggestions: string[] = [];
   let status: VerdictData['status'] = 'insufficient_data';
 
@@ -164,40 +165,79 @@ export function generateVerdict(
     status = 'insufficient_data';
     suggestions.push('Keep logging for at least 2 weeks to get meaningful analysis.');
   } else {
-    const losingWeight = weightChange != null && weightChange < -0.5;
     const gainingStrength = benchChange != null && benchChange.percentChange > 0;
+    const strengthMaintained = benchChange != null && benchChange.percentChange >= -2;
     const volumeUp = volumeChange != null && volumeChange > 0;
     const waistDown = waistChange != null && waistChange < 0;
 
-    if ((losingWeight || waistDown) && (gainingStrength || volumeUp)) {
-      status = 'winning';
-    } else if (
-      (weightChange != null && Math.abs(weightChange) < 0.5) &&
-      benchChange != null && benchChange.percentChange <= 0
-    ) {
-      status = 'stalling';
-    } else if (
-      weightChange != null && weightChange > 1 &&
-      benchChange != null && benchChange.percentChange < 0
-    ) {
-      status = 'losing';
-    } else if (gainingStrength || volumeUp) {
-      status = 'winning';
+    if (goalMode === 'cutting') {
+      // CUTTING: weight loss + strength maintenance = winning
+      const losingWeight = weightChange != null && weightChange < -0.5;
+      const losingTooFast = weightChange != null && weightChange < -2;
+
+      if ((losingWeight || waistDown) && strengthMaintained) {
+        status = 'winning';
+      } else if (losingWeight && !strengthMaintained) {
+        // Losing weight but also losing strength — could be too aggressive
+        status = losingTooFast ? 'losing' : 'stalling';
+      } else if (weightChange != null && weightChange > 0.5) {
+        // Gaining weight while trying to cut
+        status = gainingStrength ? 'stalling' : 'losing';
+      } else if (gainingStrength || volumeUp) {
+        status = 'winning';
+      } else {
+        status = 'stalling';
+      }
+
+      if (losingTooFast) {
+        suggestions.push('Losing weight too fast — add 200 cals on training days to protect muscle.');
+      }
+      if (!strengthMaintained && benchChange != null) {
+        suggestions.push('Strength is dropping. Slow the cut — your body needs more fuel to maintain muscle.');
+      }
     } else {
-      status = 'stalling';
+      // MAINTAINING: stable weight + strength gains = winning
+      const weightStable = weightChange != null && Math.abs(weightChange) <= 1;
+      const driftingUp = weightChange != null && weightChange > 1;
+      const driftingDown = weightChange != null && weightChange < -1;
+
+      if (weightStable && gainingStrength) {
+        status = 'winning';
+      } else if (weightStable && volumeUp) {
+        status = 'winning';
+      } else if (driftingUp) {
+        status = gainingStrength ? 'stalling' : 'losing';
+      } else if (driftingDown) {
+        // Unintended weight loss in maintain mode
+        status = 'stalling';
+      } else if (gainingStrength || volumeUp) {
+        status = 'winning';
+      } else if (weightStable) {
+        status = benchChange != null && benchChange.percentChange <= 0 ? 'stalling' : 'winning';
+      } else {
+        status = 'stalling';
+      }
+
+      if (driftingUp) {
+        suggestions.push('Weight is drifting up. Tighten up portions or add 20 min of walking on rest days.');
+      }
+      if (driftingDown) {
+        suggestions.push('Weight is dropping in maintain mode. Add a snack or slightly larger portions to stabilize.');
+      }
+      if (!gainingStrength && benchChange != null && benchChange.percentChange <= 0) {
+        suggestions.push('At maintenance calories, strength should be going up. Ensure progressive overload — add reps or weight each session.');
+      }
     }
 
+    // Shared suggestions
     if (avgProt != null && avgProt < targetProtein * 0.85) {
       suggestions.push(`Increase protein to ${targetProtein}g+ (currently averaging ${avgProt}g/day).`);
     }
     if (status === 'stalling' || status === 'losing') {
       suggestions.push('Ensure 7-8hr sleep for optimal recovery.');
-      if (weightChange != null && weightChange < -2) {
-        suggestions.push('Consider slight calorie increase on training days - you may be cutting too aggressively.');
-      }
     }
-    if (benchChange != null && benchChange.percentChange <= 0) {
-      suggestions.push('Bench press is stalling. Try micro-loading (2.5lb plates) or add a pause rep variation.');
+    if (waistDown && goalMode === 'cutting') {
+      suggestions.push('Waist is shrinking — great sign of fat loss even if the scale is stubborn.');
     }
   }
 

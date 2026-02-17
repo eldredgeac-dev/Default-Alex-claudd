@@ -273,14 +273,19 @@ export function generateCoachingAdvice(
     icon: '//',
   });
 
-  // --- NUTRITION ---
+  // --- NUTRITION (mode-aware) ---
+  const goalMode = config.goalMode ?? 'cutting';
+  const isCutting = goalMode === 'cutting';
   const avgProt = averageProtein(bodyMetrics);
+
   if (avgProt != null) {
     if (avgProt < config.targetProtein * 0.8) {
       advice.push({
         category: 'nutrition',
         title: 'Protein Is Low',
-        message: `Averaging ${avgProt}g/day — you need ${config.targetProtein}g+ for your goals. At ${config.currentWeight || 185} lbs while trying to build/maintain muscle in a cut, protein is non-negotiable. Add a shake post-workout and Greek yogurt before bed.`,
+        message: isCutting
+          ? `Averaging ${avgProt}g/day — you need ${config.targetProtein}g+ while cutting. In a deficit, protein is what saves your muscle. Add a shake post-workout and Greek yogurt before bed.`
+          : `Averaging ${avgProt}g/day — you need ${config.targetProtein}g+ to fuel recovery and growth. At maintenance calories, this is easy to hit. Add a shake or an extra chicken breast.`,
         priority: 'high',
         icon: '//',
       });
@@ -288,7 +293,9 @@ export function generateCoachingAdvice(
       advice.push({
         category: 'nutrition',
         title: 'Protein on Point',
-        message: `${avgProt}g/day average — hitting your ${config.targetProtein}g target. This is protecting your muscle mass while cutting. Keep it up.`,
+        message: isCutting
+          ? `${avgProt}g/day average — hitting your ${config.targetProtein}g target. This is protecting your muscle mass while cutting. Keep it up.`
+          : `${avgProt}g/day average — nailing it. At maintenance, this supports strength gains and recovery. No need to go higher.`,
         priority: 'low',
         icon: '//',
       });
@@ -301,6 +308,25 @@ export function generateCoachingAdvice(
         icon: '//',
       });
     }
+  }
+
+  // Mode-specific nutrition guidance
+  if (isCutting) {
+    advice.push({
+      category: 'nutrition',
+      title: 'Cutting Strategy',
+      message: 'Aim for 0.5-1 lb/week loss. Eat more on training days (extra 200-300 cal), less on rest days. Prioritize protein and veggies to stay full. A small deficit sustained beats a big deficit you can\'t stick to.',
+      priority: 'medium',
+      icon: '//',
+    });
+  } else {
+    advice.push({
+      category: 'nutrition',
+      title: 'Maintenance Fueling',
+      message: 'At maintenance, you can fuel harder training. Eat enough to perform — if lifts are stalling, you may need slightly more calories on training days. Strength should be trending up in maintain mode.',
+      priority: 'medium',
+      icon: '//',
+    });
   }
 
   // Hydration reminder
@@ -382,37 +408,74 @@ export function generateCoachingAdvice(
     }
   }
 
-  // Weight trend coaching
+  // Weight trend coaching (mode-aware)
   const trendData = calculateTrendWeight(bodyMetrics);
   if (trendData.length >= 14) {
     const currentTrend = trendData[trendData.length - 1].trend;
     const twoWeeksAgo = trendData[Math.max(0, trendData.length - 14)].trend;
     const weeklyRate = (currentTrend - twoWeeksAgo) / 2;
 
-    if (weeklyRate < -1.5) {
-      advice.push({
-        category: 'nutrition',
-        title: 'Cutting Too Fast',
-        message: `Losing ~${Math.abs(weeklyRate).toFixed(1)} lbs/week. At 33, losing faster than 1% BW/week (${((config.currentWeight || 185) * 0.01).toFixed(1)} lbs/wk) risks muscle loss. Slow down — add 200 cals on training days, keep protein high.`,
-        priority: 'high',
-        icon: '//',
-      });
-    } else if (weeklyRate >= -1 && weeklyRate <= -0.3) {
-      advice.push({
-        category: 'nutrition',
-        title: 'Ideal Cut Rate',
-        message: `Losing ~${Math.abs(weeklyRate).toFixed(1)} lbs/week — this is the sweet spot. Fast enough for visible progress, slow enough to keep your strength up. Stay the course.`,
-        priority: 'low',
-        icon: '//',
-      });
-    } else if (weeklyRate > 0.3) {
-      advice.push({
-        category: 'nutrition',
-        title: 'Weight Trending Up',
-        message: `Gaining ~${weeklyRate.toFixed(1)} lbs/week. If bulking, this is fine. If trying to recomp or cut, check your calorie tracking — small portions add up. A kitchen scale is your best friend.`,
-        priority: 'medium',
-        icon: '//',
-      });
+    if (isCutting) {
+      if (weeklyRate < -1.5) {
+        advice.push({
+          category: 'nutrition',
+          title: 'Cutting Too Fast',
+          message: `Losing ~${Math.abs(weeklyRate).toFixed(1)} lbs/week. At 33, losing faster than 1% BW/week (${((config.currentWeight || 185) * 0.01).toFixed(1)} lbs/wk) risks muscle loss. Slow down — add 200 cals on training days, keep protein high.`,
+          priority: 'high',
+          icon: '//',
+        });
+      } else if (weeklyRate >= -1 && weeklyRate <= -0.3) {
+        advice.push({
+          category: 'nutrition',
+          title: 'Ideal Cut Rate',
+          message: `Losing ~${Math.abs(weeklyRate).toFixed(1)} lbs/week — this is the sweet spot. Fast enough for visible progress, slow enough to keep your strength up. Stay the course.`,
+          priority: 'low',
+          icon: '//',
+        });
+      } else if (weeklyRate > 0.3) {
+        advice.push({
+          category: 'nutrition',
+          title: 'Weight Going Up While Cutting',
+          message: `Gaining ~${weeklyRate.toFixed(1)} lbs/week while in cut mode. Check your calorie tracking — small portions add up. A kitchen scale is your best friend. Or switch to Maintain mode if you're done cutting.`,
+          priority: 'high',
+          icon: '//',
+        });
+      } else if (weeklyRate > -0.3 && weeklyRate <= 0.3) {
+        advice.push({
+          category: 'nutrition',
+          title: 'Weight Stalled',
+          message: 'Scale hasn\'t budged in 2 weeks. This is normal — fat loss can be masked by water/glycogen. Check waist measurement. If waist is shrinking, you\'re still losing fat. If not, drop 100-200 cals.',
+          priority: 'medium',
+          icon: '//',
+        });
+      }
+    } else {
+      // Maintaining mode
+      if (Math.abs(weeklyRate) <= 0.5) {
+        advice.push({
+          category: 'nutrition',
+          title: 'Weight Stable',
+          message: `Weight is steady (${weeklyRate > 0 ? '+' : ''}${weeklyRate.toFixed(1)} lbs/wk) — you've found your maintenance calories. Focus on getting stronger at this weight. This is where real body composition changes happen.`,
+          priority: 'low',
+          icon: '//',
+        });
+      } else if (weeklyRate > 0.5) {
+        advice.push({
+          category: 'nutrition',
+          title: 'Drifting Above Maintenance',
+          message: `Gaining ~${weeklyRate.toFixed(1)} lbs/week. If this is intentional, great. If not, trim portions slightly or add 20 min of walking on rest days. Small adjustments beat big swings.`,
+          priority: 'medium',
+          icon: '//',
+        });
+      } else if (weeklyRate < -0.5) {
+        advice.push({
+          category: 'nutrition',
+          title: 'Losing Weight in Maintain Mode',
+          message: `Losing ~${Math.abs(weeklyRate).toFixed(1)} lbs/week while trying to maintain. If you're fine with this, switch to Cut mode. Otherwise, eat a bit more — you need fuel for strength gains.`,
+          priority: 'medium',
+          icon: '//',
+        });
+      }
     }
   }
 

@@ -41,6 +41,8 @@ export interface BodyMetric {
   protein?: number; // grams
 }
 
+export type GoalMode = 'cutting' | 'maintaining';
+
 export interface UserConfig {
   setupComplete: boolean;
   currentWeight: number;
@@ -48,6 +50,7 @@ export interface UserConfig {
   exerciseChoices: Record<string, string>; // exerciseId -> chosen variant name
   sessionTargetMinutes: number;
   legPhase: number; // 1-4: gradual leg volume ramp (1=minimal, 4=full)
+  goalMode: GoalMode; // cutting = lose fat, maintaining = hold weight
 }
 
 export interface ProgressionSuggestion {

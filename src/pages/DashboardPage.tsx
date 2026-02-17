@@ -81,7 +81,7 @@ function VerdictCard({ verdict }: { verdict: VerdictData }) {
 }
 
 export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPageProps) {
-  const verdict = generateVerdict(workouts, bodyMetrics, config.targetProtein);
+  const verdict = generateVerdict(workouts, bodyMetrics, config.targetProtein, config.goalMode);
   const suggestions = generateProgressionSuggestions(workouts);
   const trendData = calculateTrendWeight(bodyMetrics);
   const weeklyChange = weeklyWeightChange(trendData);
