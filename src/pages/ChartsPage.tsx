@@ -46,6 +46,9 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
   const [weightRange, setWeightRange] = useState<TimeRange>('3m');
   const [strengthRange, setStrengthRange] = useState<TimeRange>('3m');
   const [selectedExercise, setSelectedExercise] = useState('bench-press');
+  const goalMode = config.goalMode ?? 'cutting';
+  const isCutting = goalMode === 'cutting';
+  const trendColor = isCutting ? '#ef4444' : '#3b82f6';
 
   // Weight trend data
   const trendData = filterByRange(calculateTrendWeight(bodyMetrics), weightRange);
@@ -53,9 +56,10 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
   // Bench E1RM data
   const benchE1RM = filterByRange(getBenchE1RMHistory(workouts), strengthRange);
 
-  // Session volume over time
+  // Session volume over time (gym only — hotel workouts have minimal weight data)
   const volumeData = filterByRange(
     [...workouts]
+      .filter(w => w.workoutType !== 'hotel')
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(w => ({ date: w.date, volume: Math.round(sessionVolume(w) / 1000) })),
     strengthRange
@@ -94,7 +98,14 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
       {/* Weight Trend Chart */}
       <div className="bg-slate-800 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold">Weight Trend</h3>
+          <h3 className="text-sm font-semibold">
+            Weight Trend
+            <span className={`ml-2 text-[9px] font-bold px-1 py-0.5 rounded ${
+              isCutting ? 'bg-red-900/50 text-red-400' : 'bg-blue-900/50 text-blue-400'
+            }`}>
+              {isCutting ? 'CUTTING' : 'MAINTAINING'}
+            </span>
+          </h3>
           <RangeSelector range={weightRange} onChange={setWeightRange} />
         </div>
         {trendData.length > 1 ? (
@@ -108,7 +119,7 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
                 labelStyle={{ color: '#94a3b8' }}
               />
               <Line type="monotone" dataKey="actual" stroke="#64748b" strokeWidth={1} dot={{ r: 2, fill: '#64748b' }} name="Actual" />
-              <Line type="monotone" dataKey="trend" stroke="#3b82f6" strokeWidth={2.5} dot={false} name="Trend" />
+              <Line type="monotone" dataKey="trend" stroke={trendColor} strokeWidth={2.5} dot={false} name="Trend" />
             </ComposedChart>
           </ResponsiveContainer>
         ) : (

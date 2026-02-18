@@ -306,6 +306,128 @@ export function compareToLast(
   return { status: 'under', detail: `${pct}% vs last` };
 }
 
+/** Calculate training streak — consecutive weeks with 2+ sessions */
+export function getTrainingStreak(workouts: WorkoutSession[]): { currentWeeks: number; longestWeeks: number; thisWeekCount: number } {
+  if (workouts.length === 0) return { currentWeeks: 0, longestWeeks: 0, thisWeekCount: 0 };
+
+  const sorted = [...workouts].sort((a, b) => a.date.localeCompare(b.date));
+
+  // Group workouts by ISO week
+  const weekMap = new Map<string, number>();
+  for (const w of sorted) {
+    const d = new Date(w.date);
+    // Get Monday-based week key
+    const day = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((day + 6) % 7));
+    const weekKey = monday.toISOString().split('T')[0];
+    weekMap.set(weekKey, (weekMap.get(weekKey) ?? 0) + 1);
+  }
+
+  const weeks = [...weekMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, count]) => ({ key, count }));
+
+  // Current week
+  const now = new Date();
+  const nowDay = now.getDay();
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - ((nowDay + 6) % 7));
+  const thisWeekKey = thisMonday.toISOString().split('T')[0];
+  const thisWeekCount = weekMap.get(thisWeekKey) ?? 0;
+
+  // Count streak backwards from most recent completed week (2+ sessions = active week)
+  let current = 0;
+  let longest = 0;
+  let streak = 0;
+
+  for (let i = weeks.length - 1; i >= 0; i--) {
+    if (weeks[i].count >= 2) {
+      streak++;
+    } else {
+      if (streak > longest) longest = streak;
+      // If this is the most recent week and it's the current partial week, skip it
+      if (i === weeks.length - 1 && weeks[i].key === thisWeekKey) {
+        continue;
+      }
+      if (current === 0) current = streak;
+      streak = 0;
+    }
+  }
+  if (streak > longest) longest = streak;
+  if (current === 0) current = streak;
+
+  return { currentWeeks: current, longestWeeks: longest, thisWeekCount };
+}
+
+/** Detect personal records set in the most recent session */
+export interface PersonalRecord {
+  exerciseId: string;
+  exerciseName: string;
+  type: 'weight' | 'e1rm' | 'volume';
+  value: number;
+  previousBest: number;
+}
+
+export function detectRecentPRs(workouts: WorkoutSession[]): PersonalRecord[] {
+  if (workouts.length < 2) return [];
+
+  const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date));
+  const latest = sorted[0];
+  const older = sorted.slice(1);
+  const prs: PersonalRecord[] = [];
+
+  for (const ex of latest.exercises) {
+    const exDef = EXERCISES.find(e => e.id === ex.exerciseId);
+    if (!exDef) continue;
+
+    // Best weight in latest session
+    const latestMaxWeight = Math.max(...ex.sets.filter(s => s.reps > 0).map(s => s.weight), 0);
+    // Best e1rm in latest session
+    const latestMaxE1RM = Math.max(...ex.sets.filter(s => s.reps > 0 && s.weight > 0).map(s => estimateOneRepMax(s.weight, s.reps)), 0);
+    // Total volume in latest session
+    const latestVol = ex.sets.reduce((s, set) => s + set.weight * set.reps, 0);
+
+    // Find previous bests
+    let prevMaxWeight = 0;
+    let prevMaxE1RM = 0;
+    let prevMaxVol = 0;
+
+    for (const w of older) {
+      const prevEx = w.exercises.find(e => e.exerciseId === ex.exerciseId);
+      if (!prevEx) continue;
+      const pw = Math.max(...prevEx.sets.filter(s => s.reps > 0).map(s => s.weight), 0);
+      const pe = Math.max(...prevEx.sets.filter(s => s.reps > 0 && s.weight > 0).map(s => estimateOneRepMax(s.weight, s.reps)), 0);
+      const pv = prevEx.sets.reduce((s, set) => s + set.weight * set.reps, 0);
+      if (pw > prevMaxWeight) prevMaxWeight = pw;
+      if (pe > prevMaxE1RM) prevMaxE1RM = pe;
+      if (pv > prevMaxVol) prevMaxVol = pv;
+    }
+
+    // Only count as PR if there's prior data to compare against
+    if (prevMaxWeight > 0 && latestMaxWeight > prevMaxWeight) {
+      prs.push({
+        exerciseId: ex.exerciseId,
+        exerciseName: exDef.name,
+        type: 'weight',
+        value: latestMaxWeight,
+        previousBest: prevMaxWeight,
+      });
+    } else if (prevMaxE1RM > 0 && latestMaxE1RM > prevMaxE1RM * 1.02) {
+      // e1rm PR requires 2%+ improvement to avoid noise
+      prs.push({
+        exerciseId: ex.exerciseId,
+        exerciseName: exDef.name,
+        type: 'e1rm',
+        value: Math.round(latestMaxE1RM),
+        previousBest: Math.round(prevMaxE1RM),
+      });
+    }
+  }
+
+  return prs;
+}
+
 /** Calculate estimated 1RM progression for bench press */
 export function getBenchE1RMHistory(workouts: WorkoutSession[]): { date: string; e1rm: number }[] {
   const history = getExerciseHistory(workouts, 'bench-press');

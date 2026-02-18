@@ -1,6 +1,6 @@
 import type { WorkoutSession, BodyMetric, UserConfig, VerdictData } from '../types';
 import { generateVerdict } from '../utils/bodyMetrics';
-import { generateProgressionSuggestions, sessionVolume } from '../utils/progression';
+import { generateProgressionSuggestions, sessionVolume, getTrainingStreak, detectRecentPRs } from '../utils/progression';
 import { calculateTrendWeight, weeklyWeightChange, averageProtein, getLatestWaist } from '../utils/bodyMetrics';
 
 interface DashboardPageProps {
@@ -9,7 +9,8 @@ interface DashboardPageProps {
   config: UserConfig;
 }
 
-function VerdictCard({ verdict }: { verdict: VerdictData }) {
+function VerdictCard({ verdict, goalMode }: { verdict: VerdictData; goalMode: 'cutting' | 'maintaining' }) {
+  const isCutting = goalMode === 'cutting';
   const statusConfig = {
     winning: { icon: '✓', label: 'WINNING', bg: 'bg-green-900/40', border: 'border-green-600', text: 'text-green-400' },
     stalling: { icon: '!', label: 'STALLING', bg: 'bg-yellow-900/40', border: 'border-yellow-600', text: 'text-yellow-400' },
@@ -30,7 +31,11 @@ function VerdictCard({ verdict }: { verdict: VerdictData }) {
         {verdict.weightChange != null && (
           <div className="flex justify-between">
             <span className="text-slate-400">Trend weight (4 wk)</span>
-            <span className={verdict.weightChange < 0 ? 'text-green-400' : verdict.weightChange > 0 ? 'text-yellow-400' : 'text-slate-300'}>
+            <span className={
+              isCutting
+                ? (verdict.weightChange < 0 ? 'text-green-400' : verdict.weightChange > 0 ? 'text-yellow-400' : 'text-slate-300')
+                : (Math.abs(verdict.weightChange) <= 1 ? 'text-green-400' : 'text-yellow-400')
+            }>
               {verdict.weightChange > 0 ? '+' : ''}{verdict.weightChange} lbs
             </span>
           </div>
@@ -81,12 +86,16 @@ function VerdictCard({ verdict }: { verdict: VerdictData }) {
 }
 
 export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPageProps) {
-  const verdict = generateVerdict(workouts, bodyMetrics, config.targetProtein, config.goalMode);
+  const goalMode = config.goalMode ?? 'cutting';
+  const isCutting = goalMode === 'cutting';
+  const verdict = generateVerdict(workouts, bodyMetrics, config.targetProtein, goalMode);
   const suggestions = generateProgressionSuggestions(workouts);
   const trendData = calculateTrendWeight(bodyMetrics);
   const weeklyChange = weeklyWeightChange(trendData);
   const avgProt = averageProtein(bodyMetrics);
   const waist = getLatestWaist(bodyMetrics);
+  const streak = getTrainingStreak(workouts);
+  const recentPRs = detectRecentPRs(workouts);
   const sortedWorkouts = [...workouts].sort((a, b) => b.date.localeCompare(a.date));
   const lastWorkout = sortedWorkouts[0];
   const lastVolume = lastWorkout ? sessionVolume(lastWorkout) : null;
@@ -97,14 +106,21 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
   return (
     <div className="space-y-4 pb-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Lift & Lean</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold">Lift & Lean</h1>
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+            isCutting ? 'bg-red-900/50 text-red-400' : 'bg-blue-900/50 text-blue-400'
+          }`}>
+            {isCutting ? 'CUT' : 'MAINTAIN'}
+          </span>
+        </div>
         <div className="text-xs text-slate-500">
           {gymCount} gym{hotelCount > 0 ? ` + ${hotelCount} hotel` : ''} sessions
         </div>
       </div>
 
       {/* Main Verdict */}
-      <VerdictCard verdict={verdict} />
+      <VerdictCard verdict={verdict} goalMode={goalMode} />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-3">
@@ -114,7 +130,11 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
             {trendData.length > 0 ? `${trendData[trendData.length - 1].trend} lbs` : '--'}
           </div>
           {weeklyChange != null && (
-            <div className={`text-xs ${weeklyChange < 0 ? 'text-green-400' : weeklyChange > 0 ? 'text-yellow-400' : 'text-slate-400'}`}>
+            <div className={`text-xs ${
+              isCutting
+                ? (weeklyChange < 0 ? 'text-green-400' : weeklyChange > 0 ? 'text-yellow-400' : 'text-slate-400')
+                : (Math.abs(weeklyChange) <= 0.5 ? 'text-green-400' : 'text-yellow-400')
+            }`}>
               {weeklyChange > 0 ? '+' : ''}{weeklyChange} lbs/wk
             </div>
           )}
@@ -155,6 +175,57 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
           )}
         </div>
       </div>
+
+      {/* Streak & Consistency */}
+      {(streak.currentWeeks > 0 || streak.thisWeekCount > 0) && (
+        <div className="bg-slate-800 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-400">Training Streak</div>
+              <div className="text-lg font-bold text-cyan-400">
+                {streak.currentWeeks} week{streak.currentWeeks !== 1 ? 's' : ''}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-slate-400">This week</div>
+              <div className="flex gap-1 justify-end mt-1">
+                {[1, 2, 3].map(n => (
+                  <div
+                    key={n}
+                    className={`w-3 h-3 rounded-sm ${
+                      n <= streak.thisWeekCount ? 'bg-cyan-400' : 'bg-slate-700'
+                    }`}
+                  />
+                ))}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                {streak.thisWeekCount}/3 sessions
+              </div>
+            </div>
+          </div>
+          {streak.longestWeeks > streak.currentWeeks && (
+            <div className="text-[10px] text-slate-500 mt-1">
+              Longest streak: {streak.longestWeeks} weeks
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Personal Records */}
+      {recentPRs.length > 0 && (
+        <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl p-4 space-y-2">
+          <h3 className="text-sm font-semibold text-purple-400">New PRs Last Session!</h3>
+          {recentPRs.map((pr, i) => (
+            <div key={i} className="flex justify-between text-xs">
+              <span className="text-slate-300">{pr.exerciseName}</span>
+              <span className="text-purple-300">
+                {pr.type === 'weight' && `${pr.previousBest} → ${pr.value} lbs`}
+                {pr.type === 'e1rm' && `e1RM: ${pr.previousBest} → ${pr.value} lbs`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Progression Suggestions */}
       {suggestions.filter(s => s.priority !== 'low').length > 0 && (
