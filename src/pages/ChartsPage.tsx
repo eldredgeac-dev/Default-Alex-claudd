@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import type { WorkoutSession, BodyMetric, UserConfig } from '../types';
 import { calculateTrendWeight } from '../utils/bodyMetrics';
-import { getBenchE1RMHistory, sessionVolume, getExerciseHistory, estimateOneRepMax } from '../utils/progression';
+import { getBenchE1RMHistory, sessionVolume, exerciseVolume, getExerciseHistory, estimateOneRepMax } from '../utils/progression';
 import { EXERCISES } from '../utils/exercises';
 
 interface ChartsPageProps {
@@ -81,6 +81,39 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
     .filter(m => m.waist != null)
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(m => ({ date: m.date.slice(5), waist: m.waist! }));
+
+  // Muscle group volume breakdown (gym workouts, last 4 weeks)
+  const recentGymWorkouts = workouts
+    .filter(w => w.workoutType !== 'hotel')
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 12); // ~4 weeks of 3x/week
+
+  const groupColors: Record<string, string> = {
+    back: '#3b82f6',
+    chest: '#ef4444',
+    shoulders: '#f59e0b',
+    arms: '#a855f7',
+    legs: '#22c55e',
+    traps: '#06b6d4',
+  };
+
+  const muscleGroupVolume: { group: string; volume: number; fill: string }[] = [];
+  const groupTotals: Record<string, number> = {};
+  for (const w of recentGymWorkouts) {
+    for (const ex of w.exercises) {
+      const def = EXERCISES.find(e => e.id === ex.exerciseId);
+      if (!def) continue;
+      const vol = exerciseVolume(ex);
+      groupTotals[def.muscleGroup] = (groupTotals[def.muscleGroup] ?? 0) + vol;
+    }
+  }
+  for (const [group, vol] of Object.entries(groupTotals).sort((a, b) => b[1] - a[1])) {
+    muscleGroupVolume.push({
+      group: group.charAt(0).toUpperCase() + group.slice(1),
+      volume: Math.round(vol / 1000),
+      fill: groupColors[group] ?? '#64748b',
+    });
+  }
 
   // Selected exercise progression
   const exerciseHistory = getExerciseHistory(workouts, selectedExercise)
@@ -179,6 +212,29 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
                 labelStyle={{ color: '#94a3b8' }}
               />
               <Bar dataKey="volume" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Volume (k lbs)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Muscle Group Balance */}
+      {muscleGroupVolume.length > 1 && (
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-sm font-semibold mb-3">Muscle Group Volume (recent, k lbs)</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={muscleGroupVolume} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+              <YAxis dataKey="group" type="category" tick={{ fontSize: 10, fill: '#94a3b8' }} width={65} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#94a3b8' }}
+              />
+              <Bar dataKey="volume" radius={[0, 3, 3, 0]} name="Volume (k lbs)">
+                {muscleGroupVolume.map((entry, i) => (
+                  <rect key={i} fill={entry.fill} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>

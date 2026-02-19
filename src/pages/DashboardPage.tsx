@@ -1,12 +1,16 @@
+import { useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import type { WorkoutSession, BodyMetric, UserConfig, VerdictData } from '../types';
 import { generateVerdict } from '../utils/bodyMetrics';
 import { generateProgressionSuggestions, sessionVolume, getTrainingStreak, detectRecentPRs } from '../utils/progression';
 import { calculateTrendWeight, weeklyWeightChange, averageProtein, getLatestWaist } from '../utils/bodyMetrics';
+import { EXERCISES } from '../utils/exercises';
 
 interface DashboardPageProps {
   workouts: WorkoutSession[];
   bodyMetrics: BodyMetric[];
   config: UserConfig;
+  onSaveMetric?: (metric: BodyMetric) => void;
 }
 
 function VerdictCard({ verdict, goalMode }: { verdict: VerdictData; goalMode: 'cutting' | 'maintaining' }) {
@@ -85,7 +89,10 @@ function VerdictCard({ verdict, goalMode }: { verdict: VerdictData; goalMode: 'c
   );
 }
 
-export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPageProps) {
+export function DashboardPage({ workouts, bodyMetrics, config, onSaveMetric }: DashboardPageProps) {
+  const [quickWeight, setQuickWeight] = useState('');
+  const [quickSaved, setQuickSaved] = useState(false);
+
   const goalMode = config.goalMode ?? 'cutting';
   const isCutting = goalMode === 'cutting';
   const verdict = generateVerdict(workouts, bodyMetrics, config.targetProtein, goalMode);
@@ -102,6 +109,41 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
 
   const gymCount = workouts.filter(w => w.workoutType !== 'hotel').length;
   const hotelCount = workouts.filter(w => w.workoutType === 'hotel').length;
+
+  // All-time stats
+  const totalVolume = workouts
+    .filter(w => w.workoutType !== 'hotel')
+    .reduce((s, w) => s + sessionVolume(w), 0);
+  const firstWorkoutDate = sortedWorkouts.length > 0 ? sortedWorkouts[sortedWorkouts.length - 1].date : null;
+  const daysSinceStart = firstWorkoutDate
+    ? Math.ceil((new Date().getTime() - new Date(firstWorkoutDate).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  // Favorite exercise (most logged)
+  const exerciseCounts: Record<string, number> = {};
+  for (const w of workouts) {
+    for (const ex of w.exercises) {
+      exerciseCounts[ex.exerciseId] = (exerciseCounts[ex.exerciseId] ?? 0) + 1;
+    }
+  }
+  const favoriteExId = Object.entries(exerciseCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const favoriteEx = favoriteExId ? EXERCISES.find(e => e.id === favoriteExId) : null;
+
+  // Check if today already has a weight entry
+  const today = new Date().toISOString().split('T')[0];
+  const todayHasWeight = bodyMetrics.some(m => m.date === today && m.weight != null);
+
+  const handleQuickWeighIn = () => {
+    if (!quickWeight || !onSaveMetric) return;
+    onSaveMetric({
+      id: uuidv4(),
+      date: today,
+      weight: parseFloat(quickWeight),
+    });
+    setQuickSaved(true);
+    setQuickWeight('');
+    setTimeout(() => setQuickSaved(false), 2000);
+  };
 
   return (
     <div className="space-y-4 pb-4">
@@ -227,6 +269,38 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
         </div>
       )}
 
+      {/* Quick Weigh-In */}
+      {onSaveMetric && !todayHasWeight && (
+        <div className="bg-slate-800 rounded-xl p-3 flex items-center gap-3">
+          <div className="text-xs text-slate-400 whitespace-nowrap">Quick weigh-in</div>
+          <input
+            type="number"
+            value={quickWeight}
+            onChange={e => setQuickWeight(e.target.value)}
+            placeholder={trendData.length > 0 ? String(trendData[trendData.length - 1].actual) : 'lbs'}
+            step="0.1"
+            className="flex-1 bg-slate-700 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+            inputMode="decimal"
+          />
+          <button
+            onClick={handleQuickWeighIn}
+            disabled={!quickWeight}
+            className={`rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
+              quickSaved
+                ? 'bg-green-600 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed'
+            }`}
+          >
+            {quickSaved ? 'Done' : 'Log'}
+          </button>
+        </div>
+      )}
+      {todayHasWeight && (
+        <div className="bg-slate-800/50 rounded-xl p-2 text-center text-[10px] text-slate-500">
+          Weighed in today
+        </div>
+      )}
+
       {/* Progression Suggestions */}
       {suggestions.filter(s => s.priority !== 'low').length > 0 && (
         <div className="bg-slate-800 rounded-xl p-4 space-y-2">
@@ -247,6 +321,37 @@ export function DashboardPage({ workouts, bodyMetrics, config }: DashboardPagePr
                 {s.message}
               </div>
             ))}
+        </div>
+      )}
+
+      {/* All-Time Stats */}
+      {workouts.length >= 3 && (
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-slate-300 mb-2">All-Time</h3>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total volume</span>
+              <span className="text-slate-300 font-medium">
+                {totalVolume > 1000000
+                  ? `${(totalVolume / 1000000).toFixed(1)}M lbs`
+                  : `${(totalVolume / 1000).toFixed(0)}k lbs`}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Sessions</span>
+              <span className="text-slate-300 font-medium">{workouts.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Days training</span>
+              <span className="text-slate-300 font-medium">{daysSinceStart}</span>
+            </div>
+            {favoriteEx && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Most logged</span>
+                <span className="text-slate-300 font-medium">{favoriteEx.name}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

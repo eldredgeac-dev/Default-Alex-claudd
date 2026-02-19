@@ -11,6 +11,7 @@ interface WorkoutPageProps {
   onSave: (workout: WorkoutSession) => void;
   exerciseChoices: Record<string, string>;
   legPhase?: number;
+  onSwapExercise?: (exerciseId: string) => void;
 }
 
 // --- Gym exercise card with targets, last session, and live feedback ---
@@ -22,6 +23,7 @@ function GymExerciseCard({
   exerciseChoices,
   isLeg,
   onSetChange,
+  onSwapExercise,
 }: {
   def: ExerciseDefinition;
   exLog: ExerciseLog;
@@ -29,6 +31,7 @@ function GymExerciseCard({
   exerciseChoices: Record<string, string>;
   isLeg: boolean;
   onSetChange: (setIndex: number, field: 'weight' | 'reps', value: number) => void;
+  onSwapExercise?: (exerciseId: string) => void;
 }) {
   const hitTarget = exLog.sets.every(s => s.reps >= def.maxReps && s.weight > 0);
   const comparison = compareToLast(exLog.sets, target?.lastSession ?? null);
@@ -45,6 +48,9 @@ function GymExerciseCard({
     comparison.status === 'under' ? 'text-yellow-400' :
     'text-transparent';
 
+  const currentName = getExerciseDisplayName(def.id, exerciseChoices);
+  const hasAlt = !!def.alternativeName;
+
   return (
     <div
       className={`bg-slate-800 rounded-xl p-4 space-y-2 ${
@@ -54,11 +60,19 @@ function GymExerciseCard({
       {/* Exercise name + rep scheme */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium text-sm">
-            {getExerciseDisplayName(def.id, exerciseChoices)}
-          </h3>
-          {def.alternativeName && !exerciseChoices[def.id] && (
-            <span className="text-xs text-slate-500">or {def.alternativeName}</span>
+          {hasAlt ? (
+            <button
+              onClick={() => onSwapExercise?.(def.id)}
+              className="font-medium text-sm text-left hover:text-blue-400 transition-colors flex items-center gap-1"
+            >
+              {currentName}
+              <span className="text-[9px] text-slate-600">&#8644;</span>
+            </button>
+          ) : (
+            <h3 className="font-medium text-sm">{currentName}</h3>
+          )}
+          {hasAlt && (
+            <span className="text-[10px] text-slate-600">tap to swap</span>
           )}
         </div>
         <div className="text-xs text-slate-500">
@@ -194,7 +208,7 @@ function HotelSetInput({
 
 // --- Main WorkoutPage ---
 
-export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }: WorkoutPageProps) {
+export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, onSwapExercise }: WorkoutPageProps) {
   const [mode, setMode] = useState<'gym' | 'hotel'>('gym');
   const [hotelEquipment, setHotelEquipment] = useState<'none' | 'band' | 'dumbbell'>('none');
   const [exercises, setExercises] = useState<ExerciseLog[]>([]);
@@ -470,6 +484,7 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
                 exerciseChoices={exerciseChoices}
                 isLeg={false}
                 onSetChange={(si, field, val) => handleSetChange(exIdx, si, field, val)}
+                onSwapExercise={onSwapExercise}
               />
             );
           })}
@@ -490,6 +505,7 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1 }:
                 exerciseChoices={exerciseChoices}
                 isLeg={true}
                 onSetChange={(si, field, val) => handleSetChange(exIdx, si, field, val)}
+                onSwapExercise={onSwapExercise}
               />
             );
           })}

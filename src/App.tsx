@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useAppState } from './hooks/useAppState';
 import { TabBar } from './components/TabBar';
 import { SetupWizard } from './components/SetupWizard';
@@ -7,6 +8,7 @@ import { BodyPage } from './pages/BodyPage';
 import { ChartsPage } from './pages/ChartsPage';
 import { CoachPage } from './pages/CoachPage';
 import { HistoryPage } from './pages/HistoryPage';
+import { EXERCISES } from './utils/exercises';
 
 function App() {
   const {
@@ -23,6 +25,17 @@ function App() {
     reloadData,
   } = useAppState();
 
+  const handleSwapExercise = useCallback((exerciseId: string) => {
+    const ex = EXERCISES.find(e => e.id === exerciseId);
+    if (!ex?.alternativeName) return;
+    const current = config.exerciseChoices[exerciseId];
+    const newChoice = current === ex.alternativeName ? ex.name : ex.alternativeName;
+    updateConfig({
+      ...config,
+      exerciseChoices: { ...config.exerciseChoices, [exerciseId]: newChoice },
+    });
+  }, [config, updateConfig]);
+
   if (!config.setupComplete) {
     return <SetupWizard onComplete={updateConfig} />;
   }
@@ -31,7 +44,7 @@ function App() {
     <div className="flex flex-col min-h-screen">
       <main className="flex-1 max-w-lg mx-auto w-full px-4 pt-4 pb-20">
         {activeTab === 'dashboard' && (
-          <DashboardPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} />
+          <DashboardPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} onSaveMetric={addBodyMetric} />
         )}
         {activeTab === 'coach' && (
           <CoachPage workouts={workouts} bodyMetrics={bodyMetrics} config={config} onUpdateConfig={updateConfig} />
@@ -42,6 +55,7 @@ function App() {
             onSave={addWorkout}
             exerciseChoices={config.exerciseChoices}
             legPhase={config.legPhase ?? 1}
+            onSwapExercise={handleSwapExercise}
           />
         )}
         {activeTab === 'body' && (
