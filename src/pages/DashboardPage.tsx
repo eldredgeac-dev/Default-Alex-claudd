@@ -91,7 +91,8 @@ function VerdictCard({ verdict, goalMode }: { verdict: VerdictData; goalMode: 'c
 
 export function DashboardPage({ workouts, bodyMetrics, config, onSaveMetric }: DashboardPageProps) {
   const [quickWeight, setQuickWeight] = useState('');
-  const [quickSaved, setQuickSaved] = useState(false);
+  const [quickProtein, setQuickProtein] = useState('');
+  const [quickSaved, setQuickSaved] = useState<'weight' | 'protein' | null>(null);
 
   const goalMode = config.goalMode ?? 'cutting';
   const isCutting = goalMode === 'cutting';
@@ -109,6 +110,11 @@ export function DashboardPage({ workouts, bodyMetrics, config, onSaveMetric }: D
 
   const gymCount = workouts.filter(w => w.workoutType !== 'hotel').length;
   const hotelCount = workouts.filter(w => w.workoutType === 'hotel').length;
+
+  // Days since last workout
+  const daysSinceLast = lastWorkout
+    ? Math.floor((new Date().getTime() - new Date(lastWorkout.date).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
 
   // All-time stats
   const totalVolume = workouts
@@ -129,9 +135,10 @@ export function DashboardPage({ workouts, bodyMetrics, config, onSaveMetric }: D
   const favoriteExId = Object.entries(exerciseCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
   const favoriteEx = favoriteExId ? EXERCISES.find(e => e.id === favoriteExId) : null;
 
-  // Check if today already has a weight entry
+  // Check if today already has entries
   const today = new Date().toISOString().split('T')[0];
   const todayHasWeight = bodyMetrics.some(m => m.date === today && m.weight != null);
+  const todayHasProtein = bodyMetrics.some(m => m.date === today && m.protein != null);
 
   const handleQuickWeighIn = () => {
     if (!quickWeight || !onSaveMetric) return;
@@ -140,9 +147,21 @@ export function DashboardPage({ workouts, bodyMetrics, config, onSaveMetric }: D
       date: today,
       weight: parseFloat(quickWeight),
     });
-    setQuickSaved(true);
+    setQuickSaved('weight');
     setQuickWeight('');
-    setTimeout(() => setQuickSaved(false), 2000);
+    setTimeout(() => setQuickSaved(null), 2000);
+  };
+
+  const handleQuickProtein = () => {
+    if (!quickProtein || !onSaveMetric) return;
+    onSaveMetric({
+      id: uuidv4(),
+      date: today,
+      protein: parseInt(quickProtein),
+    });
+    setQuickSaved('protein');
+    setQuickProtein('');
+    setTimeout(() => setQuickSaved(null), 2000);
   };
 
   return (
@@ -160,6 +179,30 @@ export function DashboardPage({ workouts, bodyMetrics, config, onSaveMetric }: D
           {gymCount} gym{hotelCount > 0 ? ` + ${hotelCount} hotel` : ''} sessions
         </div>
       </div>
+
+      {/* Days Since Last Workout Nudge */}
+      {daysSinceLast != null && daysSinceLast >= 3 && (
+        <div className={`rounded-xl p-3 text-center ${
+          daysSinceLast >= 7
+            ? 'bg-red-900/30 border border-red-700/50'
+            : daysSinceLast >= 4
+            ? 'bg-yellow-900/30 border border-yellow-700/50'
+            : 'bg-slate-800'
+        }`}>
+          <div className={`text-sm font-bold ${
+            daysSinceLast >= 7 ? 'text-red-400' : daysSinceLast >= 4 ? 'text-yellow-400' : 'text-slate-300'
+          }`}>
+            {daysSinceLast} days since last workout
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">
+            {daysSinceLast >= 7
+              ? 'No guilt — just show up today. Drop weights 10% and ease back in.'
+              : daysSinceLast >= 4
+              ? 'Your body is recovered. Time to get after it.'
+              : 'Rest day. Recovery is part of the process.'}
+          </div>
+        </div>
+      )}
 
       {/* Main Verdict */}
       <VerdictCard verdict={verdict} goalMode={goalMode} />
@@ -269,35 +312,64 @@ export function DashboardPage({ workouts, bodyMetrics, config, onSaveMetric }: D
         </div>
       )}
 
-      {/* Quick Weigh-In */}
-      {onSaveMetric && !todayHasWeight && (
-        <div className="bg-slate-800 rounded-xl p-3 flex items-center gap-3">
-          <div className="text-xs text-slate-400 whitespace-nowrap">Quick weigh-in</div>
-          <input
-            type="number"
-            value={quickWeight}
-            onChange={e => setQuickWeight(e.target.value)}
-            placeholder={trendData.length > 0 ? String(trendData[trendData.length - 1].actual) : 'lbs'}
-            step="0.1"
-            className="flex-1 bg-slate-700 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
-            inputMode="decimal"
-          />
-          <button
-            onClick={handleQuickWeighIn}
-            disabled={!quickWeight}
-            className={`rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
-              quickSaved
-                ? 'bg-green-600 text-white'
-                : 'bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed'
-            }`}
-          >
-            {quickSaved ? 'Done' : 'Log'}
-          </button>
+      {/* Quick Log (Weight + Protein) */}
+      {onSaveMetric && (!todayHasWeight || !todayHasProtein) && (
+        <div className="bg-slate-800 rounded-xl p-3 space-y-2">
+          <div className="text-xs text-slate-400 font-medium">Quick Log</div>
+          {!todayHasWeight && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 w-12">Weight</span>
+              <input
+                type="number"
+                value={quickWeight}
+                onChange={e => setQuickWeight(e.target.value)}
+                placeholder={trendData.length > 0 ? String(trendData[trendData.length - 1].actual) : 'lbs'}
+                step="0.1"
+                className="flex-1 bg-slate-700 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                inputMode="decimal"
+              />
+              <button
+                onClick={handleQuickWeighIn}
+                disabled={!quickWeight}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  quickSaved === 'weight'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed'
+                }`}
+              >
+                {quickSaved === 'weight' ? 'Done' : 'Log'}
+              </button>
+            </div>
+          )}
+          {!todayHasProtein && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 w-12">Protein</span>
+              <input
+                type="number"
+                value={quickProtein}
+                onChange={e => setQuickProtein(e.target.value)}
+                placeholder={`${config.targetProtein}g`}
+                className="flex-1 bg-slate-700 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                inputMode="numeric"
+              />
+              <button
+                onClick={handleQuickProtein}
+                disabled={!quickProtein}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  quickSaved === 'protein'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed'
+                }`}
+              >
+                {quickSaved === 'protein' ? 'Done' : 'Log'}
+              </button>
+            </div>
+          )}
         </div>
       )}
-      {todayHasWeight && (
+      {todayHasWeight && todayHasProtein && (
         <div className="bg-slate-800/50 rounded-xl p-2 text-center text-[10px] text-slate-500">
-          Weighed in today
+          Weighed in + protein logged today
         </div>
       )}
 

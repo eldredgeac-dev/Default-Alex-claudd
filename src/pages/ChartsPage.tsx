@@ -115,6 +115,44 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
     });
   }
 
+  // Workout frequency — sessions per week
+  const frequencyData: { week: string; sessions: number; target: number }[] = [];
+  if (workouts.length > 0) {
+    const sorted = [...workouts].sort((a, b) => a.date.localeCompare(b.date));
+    const weekMap = new Map<string, number>();
+    for (const w of sorted) {
+      const d = new Date(w.date);
+      const day = d.getDay();
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - ((day + 6) % 7));
+      const weekKey = monday.toISOString().split('T')[0];
+      weekMap.set(weekKey, (weekMap.get(weekKey) ?? 0) + 1);
+    }
+    for (const [week, count] of [...weekMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12)) {
+      frequencyData.push({
+        week: week.slice(5), // MM-DD
+        sessions: count,
+        target: 3,
+      });
+    }
+  }
+
+  // Body recomp overlay: weight trend + bench e1rm on same timeline
+  const recompData: { date: string; trend?: number; e1rm?: number }[] = [];
+  if (trendData.length > 0 && benchE1RM.length > 0) {
+    // Merge both datasets by date
+    const dateMap = new Map<string, { trend?: number; e1rm?: number }>();
+    for (const d of trendData) {
+      dateMap.set(d.date, { ...dateMap.get(d.date), trend: d.trend });
+    }
+    for (const d of benchE1RM) {
+      dateMap.set(d.date, { ...dateMap.get(d.date), e1rm: d.e1rm });
+    }
+    for (const [date, vals] of [...dateMap.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      recompData.push({ date: date.slice(5), ...vals });
+    }
+  }
+
   // Selected exercise progression
   const exerciseHistory = getExerciseHistory(workouts, selectedExercise)
     .reverse()
@@ -240,6 +278,31 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
         </div>
       )}
 
+      {/* Workout Frequency */}
+      {frequencyData.length > 2 && (
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-sm font-semibold mb-3">Sessions Per Week (last 12 weeks)</h3>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={frequencyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#94a3b8' }} />
+              <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: '#94a3b8' }} width={20} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#94a3b8' }}
+              />
+              <ReferenceLine y={3} stroke="#22c55e" strokeDasharray="4 4" />
+              <Bar dataKey="sessions" name="Sessions" radius={[3, 3, 0, 0]}>
+                {frequencyData.map((entry, i) => (
+                  <rect key={i} fill={entry.sessions >= 3 ? '#22c55e' : entry.sessions >= 2 ? '#f59e0b' : '#ef4444'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="text-[10px] text-slate-500 mt-1 text-center">Green = 3+ sessions (on target)</div>
+        </div>
+      )}
+
       {/* Protein Chart */}
       {proteinData.length > 0 && (
         <div className="bg-slate-800 rounded-xl p-4">
@@ -282,6 +345,45 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
               />
               <Line type="monotone" dataKey="waist" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} name="Waist (in)" />
             </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Body Recomposition (Weight vs Strength) */}
+      {recompData.length > 3 && (
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-sm font-semibold mb-1">Body Recomposition</h3>
+          <div className="text-[10px] text-slate-500 mb-3">
+            {isCutting
+              ? 'Goal: weight trend going down while strength holds or goes up'
+              : 'Goal: stable weight with strength trending up'}
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={recompData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} />
+              <YAxis
+                yAxisId="weight"
+                domain={['auto', 'auto']}
+                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                width={40}
+                label={{ value: 'lbs', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 9 }}
+              />
+              <YAxis
+                yAxisId="strength"
+                orientation="right"
+                domain={['auto', 'auto']}
+                tick={{ fontSize: 10, fill: '#06b6d4' }}
+                width={40}
+                label={{ value: 'e1RM', angle: 90, position: 'insideRight', fill: '#06b6d4', fontSize: 9 }}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#94a3b8' }}
+              />
+              <Line yAxisId="weight" type="monotone" dataKey="trend" stroke={trendColor} strokeWidth={2} dot={false} name="Weight Trend" connectNulls />
+              <Line yAxisId="strength" type="monotone" dataKey="e1rm" stroke="#06b6d4" strokeWidth={2} dot={{ r: 2, fill: '#06b6d4' }} name="Bench e1RM" connectNulls />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}
