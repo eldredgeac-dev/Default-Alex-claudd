@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, ComposedChart,
+  Tooltip, ResponsiveContainer, ReferenceLine, ComposedChart, Cell,
 } from 'recharts';
 import type { WorkoutSession, BodyMetric, UserConfig } from '../types';
 import { calculateTrendWeight } from '../utils/bodyMetrics';
@@ -24,20 +24,58 @@ function filterByRange<T extends { date: string }>(data: T[], range: TimeRange):
   return data.filter(d => new Date(d.date) >= cutoff);
 }
 
+const tooltipStyle = {
+  backgroundColor: '#0f172a',
+  border: '1px solid rgba(71, 85, 105, 0.4)',
+  borderRadius: 12,
+  fontSize: 12,
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+};
+
 function RangeSelector({ range, onChange }: { range: TimeRange; onChange: (r: TimeRange) => void }) {
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 bg-slate-900/60 rounded-xl p-0.5">
       {(['1m', '3m', '6m', 'all'] as const).map(r => (
         <button
           key={r}
           onClick={() => onChange(r)}
-          className={`px-2 py-0.5 text-xs rounded ${
-            range === r ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+          className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${
+            range === r
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
           }`}
         >
-          {r.toUpperCase()}
+          {r}
         </button>
       ))}
+    </div>
+  );
+}
+
+function ChartCard({ children, title, subtitle, right }: {
+  children: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 border border-slate-700/20">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-100">{title}</h3>
+          {subtitle && <p className="text-[10px] text-slate-500 mt-0.5">{subtitle}</p>}
+        </div>
+        {right}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div className="h-[180px] flex items-center justify-center text-slate-500 text-sm">
+      {message}
     </div>
   );
 }
@@ -56,7 +94,7 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
   // Bench E1RM data
   const benchE1RM = filterByRange(getBenchE1RMHistory(workouts), strengthRange);
 
-  // Session volume over time (gym only — hotel workouts have minimal weight data)
+  // Session volume over time (gym only)
   const volumeData = filterByRange(
     [...workouts]
       .filter(w => w.workoutType !== 'hotel')
@@ -86,7 +124,7 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
   const recentGymWorkouts = workouts
     .filter(w => w.workoutType !== 'hotel')
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 12); // ~4 weeks of 3x/week
+    .slice(0, 12);
 
   const groupColors: Record<string, string> = {
     back: '#3b82f6',
@@ -130,7 +168,7 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
     }
     for (const [week, count] of [...weekMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12)) {
       frequencyData.push({
-        week: week.slice(5), // MM-DD
+        week: week.slice(5),
         sessions: count,
         target: 3,
       });
@@ -140,7 +178,6 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
   // Body recomp overlay: weight trend + bench e1rm on same timeline
   const recompData: { date: string; trend?: number; e1rm?: number }[] = [];
   if (trendData.length > 0 && benchE1RM.length > 0) {
-    // Merge both datasets by date
     const dateMap = new Map<string, { trend?: number; e1rm?: number }>();
     for (const d of trendData) {
       dateMap.set(d.date, { ...dateMap.get(d.date), trend: d.trend });
@@ -163,53 +200,49 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
     }));
 
   return (
-    <div className="space-y-6 pb-4">
-      <h2 className="text-lg font-bold">Progress Charts</h2>
+    <div className="space-y-4 pb-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-extrabold tracking-tight">Charts</h2>
+        <span className={`text-[9px] font-bold px-2 py-1 rounded-lg ring-1 ${
+          isCutting
+            ? 'bg-red-500/10 text-red-400 ring-red-500/20'
+            : 'bg-blue-500/10 text-blue-400 ring-blue-500/20'
+        }`}>
+          {isCutting ? 'CUTTING' : 'MAINTAINING'}
+        </span>
+      </div>
 
       {/* Weight Trend Chart */}
-      <div className="bg-slate-800 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold">
-            Weight Trend
-            <span className={`ml-2 text-[9px] font-bold px-1 py-0.5 rounded ${
-              isCutting ? 'bg-red-900/50 text-red-400' : 'bg-blue-900/50 text-blue-400'
-            }`}>
-              {isCutting ? 'CUTTING' : 'MAINTAINING'}
-            </span>
-          </h3>
-          <RangeSelector range={weightRange} onChange={setWeightRange} />
-        </div>
+      <ChartCard
+        title="Weight Trend"
+        subtitle={isCutting ? 'Trend should be going down' : 'Trend should stay stable'}
+        right={<RangeSelector range={weightRange} onChange={setWeightRange} />}
+      >
         {trendData.length > 1 ? (
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={d => d.slice(5)} />
-              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <Line type="monotone" dataKey="actual" stroke="#64748b" strokeWidth={1} dot={{ r: 2, fill: '#64748b' }} name="Actual" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={d => d.slice(5)} />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#64748b' }} width={40} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <Line type="monotone" dataKey="actual" stroke="#475569" strokeWidth={1} dot={{ r: 2, fill: '#475569' }} name="Actual" />
               <Line type="monotone" dataKey="trend" stroke={trendColor} strokeWidth={2.5} dot={false} name="Trend" />
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-[200px] flex items-center justify-center text-slate-500 text-sm">
-            Log weight entries to see your trend
-          </div>
+          <EmptyChart message="Log weight entries to see your trend" />
         )}
-      </div>
+      </ChartCard>
 
       {/* Exercise Progression */}
-      <div className="bg-slate-800 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold">Strength Progression</h3>
-          <RangeSelector range={strengthRange} onChange={setStrengthRange} />
-        </div>
+      <ChartCard
+        title="Strength Progression"
+        right={<RangeSelector range={strengthRange} onChange={setStrengthRange} />}
+      >
         <select
           value={selectedExercise}
           onChange={e => setSelectedExercise(e.target.value)}
-          className="w-full bg-slate-700 rounded-lg px-3 py-1.5 text-xs mb-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full bg-slate-700/50 border border-slate-600/30 rounded-xl px-3 py-2 text-xs mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
         >
           {EXERCISES.map(ex => (
             <option key={ex.id} value={ex.id}>{ex.name}</option>
@@ -218,156 +251,37 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
         {exerciseHistory.length > 1 ? (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={exerciseHistory}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <Line type="monotone" dataKey="weight" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} name="Weight (lbs)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#64748b' }} width={40} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <Line type="monotone" dataKey="weight" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: '#22c55e' }} name="Weight (lbs)" />
               <Line type="monotone" dataKey="e1rm" stroke="#06b6d4" strokeWidth={1.5} dot={false} strokeDasharray="4 4" name="Est. 1RM" />
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-[200px] flex items-center justify-center text-slate-500 text-sm">
-            Need at least 2 sessions for this exercise
-          </div>
+          <EmptyChart message="Need at least 2 sessions for this exercise" />
         )}
-      </div>
-
-      {/* Session Volume */}
-      {volumeData.length > 1 && (
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Session Volume (thousands lbs)</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={volumeData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={d => d.slice(5)} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={35} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <Bar dataKey="volume" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Volume (k lbs)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Muscle Group Balance */}
-      {muscleGroupVolume.length > 1 && (
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Muscle Group Volume (recent, k lbs)</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={muscleGroupVolume} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <YAxis dataKey="group" type="category" tick={{ fontSize: 10, fill: '#94a3b8' }} width={65} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <Bar dataKey="volume" radius={[0, 3, 3, 0]} name="Volume (k lbs)">
-                {muscleGroupVolume.map((entry, i) => (
-                  <rect key={i} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Workout Frequency */}
-      {frequencyData.length > 2 && (
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Sessions Per Week (last 12 weeks)</h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={frequencyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#94a3b8' }} />
-              <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: '#94a3b8' }} width={20} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <ReferenceLine y={3} stroke="#22c55e" strokeDasharray="4 4" />
-              <Bar dataKey="sessions" name="Sessions" radius={[3, 3, 0, 0]}>
-                {frequencyData.map((entry, i) => (
-                  <rect key={i} fill={entry.sessions >= 3 ? '#22c55e' : entry.sessions >= 2 ? '#f59e0b' : '#ef4444'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="text-[10px] text-slate-500 mt-1 text-center">Green = 3+ sessions (on target)</div>
-        </div>
-      )}
-
-      {/* Protein Chart */}
-      {proteinData.length > 0 && (
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Protein Intake (Last 14 Days)</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <ComposedChart data={proteinData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} width={35} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <ReferenceLine y={config.targetProtein} stroke="#22c55e" strokeDasharray="4 4" label={{ value: 'Target', fill: '#22c55e', fontSize: 10 }} />
-              <Bar dataKey="protein" name="Protein (g)" radius={[3, 3, 0, 0]}>
-                {proteinData.map((entry, i) => {
-                  const fill = entry.protein >= config.targetProtein ? '#22c55e'
-                    : entry.protein >= config.targetProtein * 0.85 ? '#f59e0b'
-                    : '#ef4444';
-                  return <rect key={i} fill={fill} />;
-                })}
-              </Bar>
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Waist Chart */}
-      {waistData.length > 1 && (
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Waist Measurement</h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={waistData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} width={35} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <Line type="monotone" dataKey="waist" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} name="Waist (in)" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      </ChartCard>
 
       {/* Body Recomposition (Weight vs Strength) */}
       {recompData.length > 3 && (
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-1">Body Recomposition</h3>
-          <div className="text-[10px] text-slate-500 mb-3">
-            {isCutting
-              ? 'Goal: weight trend going down while strength holds or goes up'
-              : 'Goal: stable weight with strength trending up'}
-          </div>
+        <ChartCard
+          title="Body Recomposition"
+          subtitle={isCutting
+            ? 'Goal: weight dropping while strength holds or rises'
+            : 'Goal: stable weight with strength trending up'}
+        >
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={recompData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#64748b' }} />
               <YAxis
                 yAxisId="weight"
                 domain={['auto', 'auto']}
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 width={40}
-                label={{ value: 'lbs', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 9 }}
+                label={{ value: 'lbs', angle: -90, position: 'insideLeft', fill: '#475569', fontSize: 9 }}
               />
               <YAxis
                 yAxisId="strength"
@@ -377,34 +291,141 @@ export function ChartsPage({ workouts, bodyMetrics, config }: ChartsPageProps) {
                 width={40}
                 label={{ value: 'e1RM', angle: 90, position: 'insideRight', fill: '#06b6d4', fontSize: 9 }}
               />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
               <Line yAxisId="weight" type="monotone" dataKey="trend" stroke={trendColor} strokeWidth={2} dot={false} name="Weight Trend" connectNulls />
               <Line yAxisId="strength" type="monotone" dataKey="e1rm" stroke="#06b6d4" strokeWidth={2} dot={{ r: 2, fill: '#06b6d4' }} name="Bench e1RM" connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
-        </div>
+          <div className="flex items-center justify-center gap-4 mt-2">
+            <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+              <span className="w-3 h-0.5 rounded" style={{ backgroundColor: trendColor }} /> Weight
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] text-cyan-400">
+              <span className="w-3 h-0.5 bg-cyan-400 rounded" /> Bench e1RM
+            </span>
+          </div>
+        </ChartCard>
+      )}
+
+      {/* Session Volume */}
+      {volumeData.length > 1 && (
+        <ChartCard title="Session Volume" subtitle="Total weight moved per session (thousands lbs)">
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={volumeData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={d => d.slice(5)} />
+              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={35} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <Bar dataKey="volume" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Volume (k lbs)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
+
+      {/* Muscle Group Balance */}
+      {muscleGroupVolume.length > 1 && (
+        <ChartCard title="Muscle Group Balance" subtitle="Recent volume distribution (k lbs)">
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={muscleGroupVolume} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} />
+              <YAxis dataKey="group" type="category" tick={{ fontSize: 10, fill: '#94a3b8' }} width={65} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <Bar dataKey="volume" radius={[0, 4, 4, 0]} name="Volume (k lbs)">
+                {muscleGroupVolume.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
+
+      {/* Workout Frequency */}
+      {frequencyData.length > 2 && (
+        <ChartCard title="Weekly Frequency" subtitle="Sessions per week (last 12 weeks)">
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={frequencyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#64748b' }} />
+              <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: '#64748b' }} width={20} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <ReferenceLine y={3} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.5} />
+              <Bar dataKey="sessions" name="Sessions" radius={[4, 4, 0, 0]}>
+                {frequencyData.map((entry, i) => (
+                  <Cell key={i} fill={entry.sessions >= 3 ? '#22c55e' : entry.sessions >= 2 ? '#f59e0b' : '#ef4444'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center justify-center gap-3 mt-2">
+            <span className="flex items-center gap-1 text-[10px] text-green-400">
+              <span className="w-2 h-2 rounded-sm bg-green-500" /> 3+
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-amber-400">
+              <span className="w-2 h-2 rounded-sm bg-amber-500" /> 2
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-red-400">
+              <span className="w-2 h-2 rounded-sm bg-red-500" /> 1
+            </span>
+          </div>
+        </ChartCard>
+      )}
+
+      {/* Protein Chart */}
+      {proteinData.length > 0 && (
+        <ChartCard title="Protein Intake" subtitle="Last 14 days (grams)">
+          <ResponsiveContainer width="100%" height={180}>
+            <ComposedChart data={proteinData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} />
+              <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: '#64748b' }} width={35} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <ReferenceLine y={config.targetProtein} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.6} />
+              <Bar dataKey="protein" name="Protein (g)" radius={[4, 4, 0, 0]}>
+                {proteinData.map((entry, i) => {
+                  const fill = entry.protein >= config.targetProtein ? '#22c55e'
+                    : entry.protein >= config.targetProtein * 0.85 ? '#f59e0b'
+                    : '#ef4444';
+                  return <Cell key={i} fill={fill} />;
+                })}
+              </Bar>
+            </ComposedChart>
+          </ResponsiveContainer>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center mt-1">
+            Target: {config.targetProtein}g
+          </div>
+        </ChartCard>
+      )}
+
+      {/* Waist Chart */}
+      {waistData.length > 1 && (
+        <ChartCard title="Waist Measurement" subtitle="Inches over time">
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={waistData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#64748b' }} width={35} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <Line type="monotone" dataKey="waist" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }} name="Waist (in)" />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
       )}
 
       {/* Bench E1RM */}
       {benchE1RM.length > 1 && (
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Bench Press Est. 1RM</h3>
+        <ChartCard title="Bench Press Est. 1RM" subtitle="Estimated one-rep max over time">
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={benchE1RM}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={d => d.slice(5)} />
-              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#94a3b8' }}
-              />
-              <Line type="monotone" dataKey="e1rm" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name="Est. 1RM (lbs)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={d => d.slice(5)} />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#64748b' }} width={40} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#94a3b8' }} />
+              <Line type="monotone" dataKey="e1rm" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 3, fill: '#06b6d4' }} name="Est. 1RM (lbs)" />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
       )}
     </div>
   );

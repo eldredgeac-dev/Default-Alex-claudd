@@ -51,11 +51,24 @@ function GymExerciseCard({
   const currentName = getExerciseDisplayName(def.id, exerciseChoices);
   const hasAlt = !!def.alternativeName;
 
+  const muscleColors: Record<string, string> = {
+    back: 'from-blue-500/8',
+    chest: 'from-red-500/8',
+    shoulders: 'from-amber-500/8',
+    arms: 'from-purple-500/8',
+    legs: 'from-teal-500/8',
+    traps: 'from-cyan-500/8',
+  };
+
   return (
     <div
-      className={`bg-slate-800 rounded-xl p-4 space-y-2 ${
-        hitTarget ? 'ring-1 ring-green-500/50' : ''
-      } ${isLeg ? 'border-l-2 border-l-teal-600/50' : ''}`}
+      className={`bg-gradient-to-br ${muscleColors[def.muscleGroup] ?? 'from-slate-800/80'} to-slate-900/60 rounded-2xl p-4 space-y-2.5 border transition-all ${
+        hitTarget
+          ? 'border-green-500/30 glow-green'
+          : isLeg
+          ? 'border-teal-500/15'
+          : 'border-slate-700/20'
+      }`}
     >
       {/* Exercise name + rep scheme */}
       <div className="flex items-center justify-between">
@@ -63,19 +76,16 @@ function GymExerciseCard({
           {hasAlt ? (
             <button
               onClick={() => onSwapExercise?.(def.id)}
-              className="font-medium text-sm text-left hover:text-blue-400 transition-colors flex items-center gap-1"
+              className="font-semibold text-sm text-left hover:text-blue-400 transition-colors flex items-center gap-1.5"
             >
               {currentName}
-              <span className="text-[9px] text-slate-600">&#8644;</span>
+              <span className="text-[10px] text-slate-500 bg-slate-700/50 rounded px-1 py-0.5">&#8644;</span>
             </button>
           ) : (
-            <h3 className="font-medium text-sm">{currentName}</h3>
-          )}
-          {hasAlt && (
-            <span className="text-[10px] text-slate-600">tap to swap</span>
+            <h3 className="font-semibold text-sm">{currentName}</h3>
           )}
         </div>
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-slate-500 font-medium bg-slate-800/60 rounded-lg px-2 py-1">
           {def.sets}x{def.minReps}-{def.maxReps}
           {def.perLeg ? '/leg' : ''}
         </div>
@@ -83,10 +93,10 @@ function GymExerciseCard({
 
       {/* Target action banner */}
       {target && (
-        <div className={`text-xs font-medium ${actionColor} flex items-center justify-between`}>
+        <div className={`text-xs font-semibold ${actionColor} flex items-center justify-between`}>
           <span>{target.actionMessage}</span>
           {target.sessionsAtWeight >= 4 && target.action === 'match' && (
-            <span className="text-yellow-500 text-[10px]">4+ wks same weight</span>
+            <span className="text-yellow-500/80 text-[10px] bg-yellow-500/8 px-1.5 py-0.5 rounded-full">4+ wks same</span>
           )}
         </div>
       )}
@@ -94,52 +104,52 @@ function GymExerciseCard({
       {/* Last session reference */}
       {target?.lastSession && (
         <div className="flex items-center gap-2 text-[10px] text-slate-500">
-          <span>Last:</span>
+          <span className="font-medium">Last:</span>
           {target.lastSession.map((s, i) => (
-            <span key={i} className="bg-slate-700/50 rounded px-1.5 py-0.5">
+            <span key={i} className="bg-slate-700/40 border border-slate-600/20 rounded-lg px-2 py-0.5 font-medium">
               {s.weight}x{s.reps}
             </span>
           ))}
           {target.bestEver && target.bestEver.weight > (target.lastSession[0]?.weight ?? 0) && (
-            <span className="text-purple-400 ml-auto">PR: {target.bestEver.weight}x{target.bestEver.reps}</span>
+            <span className="text-purple-400/80 ml-auto font-semibold">PR: {target.bestEver.weight}x{target.bestEver.reps}</span>
           )}
         </div>
       )}
 
       {/* Hit target celebration */}
       {hitTarget && (
-        <div className="text-xs text-green-400 font-medium">
-          All sets at max reps! Add weight next time.
+        <div className="text-xs text-green-400 font-bold bg-green-500/8 rounded-lg px-2.5 py-1.5 text-center">
+          All sets at max reps — add weight next time
         </div>
       )}
 
       {/* Set inputs */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {exLog.sets.map((set, setIdx) => {
           const lastSet = target?.lastSession?.[setIdx];
           const isBetter = lastSet && set.weight > 0 && set.reps > 0 &&
             (set.weight * set.reps) > (lastSet.weight * lastSet.reps);
           return (
-            <div key={setIdx} className="flex items-center gap-2">
-              <span className={`text-xs w-6 ${isLeg ? 'text-teal-500' : 'text-slate-500'}`}>S{setIdx + 1}</span>
+            <div key={setIdx} className="flex items-center gap-2.5">
+              <span className={`text-[10px] font-bold w-5 ${isLeg ? 'text-teal-500' : 'text-slate-500'}`}>S{setIdx + 1}</span>
               <input
                 type="number"
                 value={set.weight || ''}
                 onChange={e => onSetChange(setIdx, 'weight', parseFloat(e.target.value) || 0)}
                 placeholder={target?.targetWeight ? String(target.targetWeight) : 'lbs'}
-                className="w-20 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-20 bg-slate-700/50 border border-slate-600/30 rounded-xl px-2.5 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all"
                 inputMode="decimal"
               />
-              <span className="text-slate-500 text-xs">x</span>
+              <span className="text-slate-500/60 text-xs font-bold">x</span>
               <input
                 type="number"
                 value={set.reps || ''}
                 onChange={e => onSetChange(setIdx, 'reps', parseInt(e.target.value) || 0)}
                 placeholder={target ? `${target.targetMinReps}-${target.targetMaxReps}` : 'reps'}
-                className="w-16 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-16 bg-slate-700/50 border border-slate-600/30 rounded-xl px-2.5 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all"
                 inputMode="numeric"
               />
-              {isBetter && <span className="text-green-400 text-xs">^</span>}
+              {isBetter && <span className="text-green-400 text-xs font-bold">&#9650;</span>}
             </div>
           );
         })}
@@ -147,7 +157,7 @@ function GymExerciseCard({
 
       {/* Live comparison */}
       {comparison.status !== 'no_data' && (
-        <div className={`text-[10px] font-medium ${feedbackColor} text-right`}>
+        <div className={`text-[11px] font-bold ${feedbackColor} text-right`}>
           {comparison.detail}
         </div>
       )}
@@ -172,10 +182,10 @@ function HotelSetInput({
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {sets.map((set, idx) => (
-        <div key={idx} className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 w-6">S{idx + 1}</span>
+        <div key={idx} className="flex items-center gap-2.5">
+          <span className="text-[10px] text-slate-500 font-bold w-5">S{idx + 1}</span>
           {exercise.equipment !== 'none' ? (
             <>
               <input
@@ -183,10 +193,10 @@ function HotelSetInput({
                 value={set.weight || ''}
                 onChange={e => handleChange(idx, 'weight', parseFloat(e.target.value) || 0)}
                 placeholder="lbs"
-                className="w-20 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-orange-500"
+                className="w-20 bg-slate-700/50 border border-slate-600/30 rounded-xl px-2.5 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition-all"
                 inputMode="decimal"
               />
-              <span className="text-slate-500 text-xs">x</span>
+              <span className="text-slate-500/60 text-xs font-bold">x</span>
             </>
           ) : null}
           <input
@@ -194,11 +204,11 @@ function HotelSetInput({
             value={set.reps || ''}
             onChange={e => handleChange(idx, 'reps', parseInt(e.target.value) || 0)}
             placeholder="reps"
-            className="w-16 bg-slate-700 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-orange-500"
+            className="w-16 bg-slate-700/50 border border-slate-600/30 rounded-xl px-2.5 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition-all"
             inputMode="numeric"
           />
           {exercise.equipment === 'none' && (
-            <span className="text-[10px] text-slate-500">reps</span>
+            <span className="text-[10px] text-slate-500 font-medium">reps</span>
           )}
         </div>
       ))}
@@ -375,19 +385,23 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
     <div className="space-y-4 pb-4">
       {/* Mode Toggle */}
       {!isActive && !saved && (
-        <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
+        <div className="flex gap-1 bg-slate-800/40 rounded-2xl p-1 border border-slate-700/20">
           <button
             onClick={() => setMode('gym')}
-            className={`flex-1 text-xs py-2 rounded-md font-medium transition-colors ${
-              mode === 'gym' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 text-xs py-2.5 rounded-xl font-bold transition-all ${
+              mode === 'gym'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Gym Workout
           </button>
           <button
             onClick={() => setMode('hotel')}
-            className={`flex-1 text-xs py-2 rounded-md font-medium transition-colors ${
-              mode === 'hotel' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 text-xs py-2.5 rounded-xl font-bold transition-all ${
+              mode === 'hotel'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/20'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Hotel Workout
@@ -396,59 +410,67 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
       )}
 
       {/* Session Timer */}
-      <div className={`rounded-xl p-4 flex items-center justify-between ${
-        mode === 'hotel' ? 'bg-orange-900/20 border border-orange-800/30' : 'bg-slate-800'
+      <div className={`rounded-2xl p-5 flex items-center justify-between border transition-all ${
+        mode === 'hotel'
+          ? 'bg-gradient-to-br from-orange-900/30 to-orange-950/10 border-orange-500/15'
+          : 'bg-gradient-to-br from-slate-800/80 to-slate-900/60 border-slate-700/20'
       }`}>
         <div>
-          <div className="text-sm text-slate-400">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
             {mode === 'gym' ? 'Gym Session' : 'Hotel Session'}
           </div>
-          <div className="text-2xl font-mono font-bold">
+          <div className={`text-3xl font-mono font-extrabold mt-1 ${
+            isActive ? (mode === 'hotel' ? 'text-orange-400' : 'text-blue-400') : 'text-slate-500'
+          }`}>
             {isActive ? formatTime(elapsed) : '--:--'}
           </div>
         </div>
         {!isActive && !saved ? (
           <button
             onClick={handleStartSession}
-            className={`rounded-lg px-6 py-2 font-medium transition-colors ${
+            className={`rounded-xl px-6 py-3 font-bold text-sm transition-all shadow-lg ${
               mode === 'hotel'
-                ? 'bg-orange-600 hover:bg-orange-700'
-                : 'bg-green-600 hover:bg-green-700'
+                ? 'bg-orange-600 hover:bg-orange-500 shadow-orange-500/20'
+                : 'bg-green-600 hover:bg-green-500 shadow-green-500/20'
             }`}
           >
-            Start {mode === 'hotel' ? 'Hotel' : ''} Workout
+            Start
           </button>
         ) : !saved ? (
           <button
             onClick={handleSave}
-            className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 py-2 font-medium transition-colors"
+            className="bg-blue-600 hover:bg-blue-500 rounded-xl px-6 py-3 font-bold text-sm transition-all shadow-lg shadow-blue-500/20"
           >
-            Save Workout
+            Save
           </button>
         ) : (
-          <span className="text-green-400 font-medium">Saved</span>
+          <span className="text-green-400 font-bold text-sm bg-green-500/10 px-4 py-2 rounded-xl">Saved</span>
         )}
       </div>
 
       {/* Rest Timer */}
       {isActive && (
-        <div className="bg-slate-800 rounded-xl p-3 flex items-center justify-between">
+        <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 flex items-center justify-between border border-slate-700/20">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-400">Rest:</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Rest</span>
             {restActive ? (
-              <span className={`text-xl font-mono font-bold ${restTimer <= 5 ? 'text-red-400' : 'text-cyan-400'}`}>
+              <span className={`text-2xl font-mono font-extrabold ${restTimer <= 5 ? 'text-red-400 animate-pulse-soft' : 'text-cyan-400'}`}>
                 {formatTime(restTimer)}
               </span>
             ) : (
-              <span className="text-slate-500 text-sm">Tap to start</span>
+              <span className="text-slate-500 text-xs font-medium">Tap to start</span>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {(mode === 'hotel' ? [30, 45, 60] : [60, 90, 120]).map(s => (
               <button
                 key={s}
                 onClick={() => startRest(s)}
-                className="bg-slate-700 hover:bg-slate-600 rounded px-3 py-1 text-xs transition-colors"
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  restActive && restTimer > 0
+                    ? 'bg-slate-700/50 text-slate-400'
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                }`}
               >
                 {s}s
               </button>
@@ -462,16 +484,16 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
         <>
           {/* Superset Suggestions */}
           {isActive && (
-            <div className="bg-slate-800/50 rounded-xl p-3">
-              <div className="text-xs text-slate-400 mb-1">Efficiency tips:</div>
+            <div className="bg-cyan-500/5 border border-cyan-500/10 rounded-2xl p-3">
+              <div className="text-[10px] text-cyan-400/60 font-bold uppercase tracking-wider mb-1">Efficiency Tips</div>
               {SUPERSET_SUGGESTIONS.map((ss, i) => (
-                <div key={i} className="text-xs text-cyan-400/70">{ss.message}</div>
+                <div key={i} className="text-[11px] text-cyan-400/70 font-medium">{ss.message}</div>
               ))}
             </div>
           )}
 
           {/* Upper Body Exercises */}
-          <div className="text-xs text-slate-400 font-medium px-1">Upper Body</div>
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-1">Upper Body</div>
           {exercises.map((exLog, exIdx) => {
             const def = activeExercises[exIdx];
             if (!def || def.muscleGroup === 'legs') return null;
@@ -491,7 +513,7 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
 
           {/* Lower Body Exercises */}
           {exercises.some((_, i) => activeExercises[i]?.muscleGroup === 'legs') && (
-            <div className="text-xs text-teal-400 font-medium px-1">Lower Body</div>
+            <div className="text-[10px] text-teal-400 font-bold uppercase tracking-wider px-1">Lower Body</div>
           )}
           {exercises.map((exLog, exIdx) => {
             const def = activeExercises[exIdx];
@@ -516,8 +538,8 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
       {mode === 'hotel' && (
         <>
           {!isActive && !saved && (
-            <div className="bg-slate-800 rounded-xl p-4">
-              <div className="text-xs text-slate-400 mb-2">Equipment available?</div>
+            <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 border border-slate-700/20">
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2.5">Equipment Available?</div>
               <div className="flex gap-2">
                 {([
                   { id: 'none' as const, label: 'Nothing', desc: 'Bodyweight only' },
@@ -527,13 +549,13 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
                   <button
                     key={opt.id}
                     onClick={() => setHotelEquipment(opt.id)}
-                    className={`flex-1 rounded-lg p-2 text-center transition-colors ${
+                    className={`flex-1 rounded-xl p-2.5 text-center transition-all ${
                       hotelEquipment === opt.id
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                        ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/20'
+                        : 'bg-slate-700/50 text-slate-400 hover:bg-slate-600/50 border border-slate-600/20'
                     }`}
                   >
-                    <div className="text-xs font-medium">{opt.label}</div>
+                    <div className="text-xs font-bold">{opt.label}</div>
                     <div className="text-[9px] mt-0.5 opacity-70">{opt.desc}</div>
                   </button>
                 ))}
@@ -547,14 +569,14 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
               arms: 'text-purple-400', legs: 'text-green-400', core: 'text-cyan-400',
             };
             return (
-              <div key={ex.id} className="bg-slate-800 rounded-xl p-4 space-y-2">
+              <div key={ex.id} className="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 space-y-2.5 border border-slate-700/20">
                 <div className="flex items-center justify-between">
-                  <h3 className={`font-medium text-sm ${groupColor[ex.muscleGroup] || 'text-slate-300'}`}>
+                  <h3 className={`font-semibold text-sm ${groupColor[ex.muscleGroup] || 'text-slate-300'}`}>
                     {ex.name}
                   </h3>
-                  <div className="text-xs text-slate-500">{ex.sets}x{ex.reps}</div>
+                  <div className="text-xs text-slate-500 font-medium bg-slate-800/60 rounded-lg px-2 py-1">{ex.sets}x{ex.reps}</div>
                 </div>
-                <div className="text-[10px] text-slate-500">{ex.note}</div>
+                <div className="text-[10px] text-slate-500 leading-relaxed">{ex.note}</div>
                 {hotelLogs[ex.id] && (
                   <HotelSetInput
                     exercise={ex}
@@ -567,9 +589,12 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
           })}
 
           {isActive && (
-            <div className="bg-orange-900/10 rounded-xl p-3 text-xs text-slate-400 space-y-1">
+            <div className="bg-orange-500/5 border border-orange-500/10 rounded-2xl p-3 text-xs text-slate-400 space-y-1">
               {hotelWorkout.notes.map((n, i) => (
-                <div key={i}>- {n}</div>
+                <div key={i} className="flex gap-2">
+                  <span className="text-orange-400/50 shrink-0">&#x25B8;</span>
+                  <span>{n}</span>
+                </div>
               ))}
             </div>
           )}
@@ -577,7 +602,7 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
       )}
 
       {/* Notes */}
-      <div className="bg-slate-800 rounded-xl p-4">
+      <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 border border-slate-700/20">
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
@@ -585,26 +610,26 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
             ? "Notes (e.g., hotel gym was decent, only had up to 30lb DBs...)"
             : "Workout notes (e.g., felt strong, knees bothered me...)"
           }
-          className="w-full bg-slate-700 rounded-lg px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full bg-slate-700/40 border border-slate-600/20 rounded-xl px-3 py-2.5 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all placeholder:text-slate-600"
         />
       </div>
 
       {/* Post-Workout Suggestions (gym only) */}
       {saved && mode === 'gym' && suggestions.length > 0 && (
-        <div className="bg-slate-800 rounded-xl p-4 space-y-3">
-          <h3 className="font-semibold text-blue-400">Next Session Preview</h3>
+        <div className="bg-gradient-to-br from-blue-900/20 to-slate-900/60 rounded-2xl p-4 space-y-3 border border-blue-500/10 glow-blue">
+          <h3 className="font-bold text-blue-400 text-sm">Next Session Preview</h3>
           {suggestions
             .filter(s => s.type !== 'form')
             .slice(0, 5)
             .map((s, i) => (
               <div
                 key={i}
-                className={`text-sm p-2 rounded-lg ${
+                className={`text-xs p-3 rounded-xl font-medium ${
                   s.type === 'increase'
-                    ? 'bg-green-900/30 text-green-300'
+                    ? 'bg-green-500/8 text-green-300 border border-green-500/10'
                     : s.type === 'deload'
-                    ? 'bg-red-900/30 text-red-300'
-                    : 'bg-yellow-900/30 text-yellow-300'
+                    ? 'bg-red-500/8 text-red-300 border border-red-500/10'
+                    : 'bg-yellow-500/8 text-yellow-300 border border-yellow-500/10'
                 }`}
               >
                 {s.message}
@@ -615,9 +640,9 @@ export function WorkoutPage({ workouts, onSave, exerciseChoices, legPhase = 1, o
 
       {/* Post-workout Hotel summary */}
       {saved && mode === 'hotel' && (
-        <div className="bg-orange-900/20 border border-orange-800/30 rounded-xl p-4 space-y-2">
-          <h3 className="font-semibold text-orange-400">Hotel Workout Complete</h3>
-          <p className="text-xs text-slate-300">
+        <div className="bg-gradient-to-br from-orange-900/20 to-orange-950/10 border border-orange-500/15 rounded-2xl p-5 space-y-2 glow-orange">
+          <h3 className="font-bold text-orange-400 text-sm">Hotel Workout Complete</h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
             You showed up on the road — that's the win. This session maintained your muscle stimulus
             and kept the training habit alive. Get your protein in and rest up for the next one.
           </p>

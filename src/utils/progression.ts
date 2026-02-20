@@ -386,8 +386,6 @@ export function detectRecentPRs(workouts: WorkoutSession[]): PersonalRecord[] {
     // Best e1rm in latest session
     const latestMaxE1RM = Math.max(...ex.sets.filter(s => s.reps > 0 && s.weight > 0).map(s => estimateOneRepMax(s.weight, s.reps)), 0);
     // Total volume in latest session
-    const latestVol = ex.sets.reduce((s, set) => s + set.weight * set.reps, 0);
-
     // Find previous bests
     let prevMaxWeight = 0;
     let prevMaxE1RM = 0;
