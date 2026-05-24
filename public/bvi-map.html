@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>White Bear Lake vs. British Virgin Islands — Scale Map</title>
+  <title>White Bear Lake vs. British Virgin Islands</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,7 +11,7 @@
     body {
       font-family: 'Georgia', serif;
       background: #0d1b2a;
-      height: 100vh;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -19,341 +19,465 @@
 
     /* ── Header ── */
     #header {
-      background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 100%);
+      background: linear-gradient(135deg, #081320 0%, #163352 100%);
       color: #e8d5a3;
-      padding: 10px 18px;
+      padding: 9px 16px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      border-bottom: 2px solid #2a6496;
+      gap: 10px;
+      border-bottom: 2px solid #1e4d78;
       flex-shrink: 0;
-      z-index: 500;
     }
-    #header-left h1 {
-      font-size: 1.15rem;
+    #header h1 {
+      font-size: 1.05rem;
       font-weight: normal;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
     }
-    #header-left p {
-      font-size: 0.72rem;
-      color: #8ab4cc;
-      margin-top: 2px;
-    }
-    #header-right {
+    #header p {
       font-size: 0.7rem;
-      color: #7ec8e3;
-      text-align: right;
-      line-height: 1.6;
+      color: #7fb8d4;
+      margin-top: 1px;
+    }
+    .anchor-glyph {
+      font-size: 1.4rem;
+      line-height: 1;
+      flex-shrink: 0;
+      opacity: 0.85;
     }
 
     /* ── Map ── */
-    #map { flex: 1; }
+    #map { flex: 1; min-height: 0; }
 
-    /* ── Info Panel (top-right) ── */
-    #info-panel {
+    /* ── Info + Legend Panel (top-right, collapsible) ── */
+    #panel {
       position: absolute;
-      top: 68px;
+      top: 58px;
       right: 10px;
       z-index: 1000;
-      background: rgba(8, 18, 32, 0.93);
-      color: #e8d5a3;
-      padding: 13px 15px;
-      border-radius: 8px;
-      border: 1px solid #2a6496;
-      width: 215px;
-      line-height: 1.5;
-      backdrop-filter: blur(4px);
+      width: 220px;
+      background: rgba(6, 15, 28, 0.94);
+      color: #e0d0a8;
+      border: 1px solid #1e4d78;
+      border-radius: 9px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
     }
-    #info-panel h3 {
-      font-size: 0.7rem;
-      color: #7ec8e3;
+    #panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(20, 55, 90, 0.6);
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #1e4d78;
+    }
+    #panel-header:hover { background: rgba(30, 75, 120, 0.7); }
+    #panel-title {
+      font-size: 0.68rem;
       text-transform: uppercase;
-      letter-spacing: 1.5px;
-      border-bottom: 1px solid #2a6496;
-      padding-bottom: 5px;
-      margin-bottom: 8px;
+      letter-spacing: 1.8px;
+      color: #7ec8e3;
     }
-    .stat { display: flex; justify-content: space-between; margin: 4px 0; }
+    #panel-toggle-icon {
+      font-size: 0.75rem;
+      color: #7ec8e3;
+      transition: transform 0.25s ease;
+      line-height: 1;
+    }
+    #panel-body {
+      padding: 11px 13px 13px;
+      overflow: hidden;
+    }
+
+    .section-label {
+      font-size: 0.63rem;
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+      color: #4a8cb8;
+      margin: 10px 0 5px;
+    }
+    .section-label:first-child { margin-top: 0; }
+
+    .stat { display: flex; justify-content: space-between; align-items: baseline; margin: 3px 0; }
     .sl { color: #7a9eb5; font-size: 10.5px; }
-    .sv { color: #fff; font-size: 10.5px; font-weight: bold; }
-    .hr { border-top: 1px solid #1e3a5c; margin: 8px 0; }
-    .note {
-      font-size: 10px;
-      color: #7a9eb5;
-      line-height: 1.6;
-      margin-top: 4px;
-    }
-    .swatch {
-      display: inline-block;
-      width: 16px; height: 9px;
-      background: rgba(68,153,221,0.45);
-      border: 1.5px dashed #64b4ff;
-      border-radius: 2px;
-      vertical-align: middle;
-      margin-right: 3px;
-    }
+    .sv { color: #ddd; font-size: 10.5px; font-weight: bold; }
 
-    /* ── Legend (bottom-left) ── */
-    #legend {
+    .hr { border-top: 1px solid #152d47; margin: 9px 0; }
+
+    .leg-row { display: flex; align-items: center; gap: 9px; margin: 4px 0; font-size: 11px; color: #b8ccd8; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .dot-gold  { background: #ffd700; box-shadow: 0 0 5px #ffd70088; }
+    .dot-blue  { background: #00b4d8; box-shadow: 0 0 5px #00b4d888; }
+    .dot-teal  { background: #00d4c8; box-shadow: 0 0 5px #00d4c888; }
+    .leg-dash  { width: 20px; height: 0; border-top: 2px dashed #7ecfef; flex-shrink: 0; }
+    .leg-lake  { width: 20px; height: 12px; background: rgba(68,153,221,0.4); border: 1.5px dashed #64b4ff; border-radius: 2px; flex-shrink: 0; }
+
+    /* ── Lake Toggle (standalone, top-left area) ── */
+    #lake-toggle-wrap {
       position: absolute;
-      bottom: 40px;
-      left: 10px;
+      top: 58px;
+      left: 52px; /* sits right of Leaflet zoom control */
       z-index: 1000;
-      background: rgba(8, 18, 32, 0.92);
-      color: #d4c9a8;
-      padding: 10px 13px;
-      border-radius: 8px;
-      border: 1px solid #2a6496;
-      font-size: 11px;
-      line-height: 1.9;
     }
-    .leg-row { display: flex; align-items: center; gap: 8px; }
-    .dot-gold  { width: 11px; height: 11px; border-radius: 50%; background: #ffd700; box-shadow: 0 0 5px #ffd70099; flex-shrink: 0; }
-    .dot-teal  { width: 11px; height: 11px; border-radius: 50%; background: #00d4c8; box-shadow: 0 0 5px #00d4c899; flex-shrink: 0; }
-    .dot-blue  { width: 11px; height: 11px; border-radius: 50%; background: #00b4d8; box-shadow: 0 0 5px #00b4d899; flex-shrink: 0; }
-    .leg-dash  { width: 22px; height: 0; border-top: 2px dashed #7ecfef; flex-shrink: 0; }
-    .leg-lake  { width: 22px; height: 13px; background: rgba(68,153,221,0.45); border: 1.5px dashed #64b4ff; border-radius: 2px; flex-shrink: 0; }
+    #btnToggle {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(30, 90, 160, 0.88);
+      color: #d0e8ff;
+      border: 1.5px solid #4a9acf;
+      padding: 7px 13px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: 'Georgia', serif;
+      transition: all 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+      backdrop-filter: blur(5px);
+    }
+    #btnToggle:hover { background: rgba(50, 120, 200, 0.9); color: #fff; border-color: #7ec8e3; }
+    #btnToggle.off {
+      background: rgba(20, 40, 70, 0.88);
+      color: #5a88aa;
+      border-color: #2a5070;
+    }
+    .toggle-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #64b4ff;
+      box-shadow: 0 0 6px #64b4ffaa;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    #btnToggle.off .toggle-dot { background: #3a5878; box-shadow: none; }
 
-    /* ── Controls (bottom-center) ── */
-    #controls {
+    /* ── Navigation Buttons (bottom-center) ── */
+    #nav-bar {
       position: absolute;
-      bottom: 40px;
+      bottom: 34px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
       display: flex;
-      gap: 7px;
-      flex-wrap: wrap;
-      justify-content: center;
-      max-width: 520px;
+      align-items: center;
+      gap: 5px;
+      background: rgba(6, 15, 28, 0.92);
+      padding: 6px 8px;
+      border-radius: 24px;
+      border: 1px solid #1e4d78;
+      box-shadow: 0 3px 15px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
+      flex-wrap: nowrap;
     }
-    .btn {
-      background: rgba(8, 18, 32, 0.92);
-      color: #d4c9a8;
-      border: 1px solid #2a6496;
-      padding: 6px 13px;
-      border-radius: 18px;
+    .nav-label {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #3a6888;
+      padding: 0 6px 0 3px;
+      border-right: 1px solid #1a3a58;
+      margin-right: 3px;
+      white-space: nowrap;
+    }
+    .nbtn {
+      background: transparent;
+      color: #8ab8d0;
+      border: 1px solid transparent;
+      padding: 5px 11px;
+      border-radius: 16px;
       cursor: pointer;
       font-size: 11.5px;
       font-family: 'Georgia', serif;
+      transition: all 0.18s;
+      white-space: nowrap;
+    }
+    .nbtn:hover { background: rgba(42, 100, 150, 0.6); color: #d4eaf8; border-color: #2a6496; }
+    .nbtn.active { background: rgba(30, 80, 130, 0.7); color: #7ec8e3; border-color: #3a7ab8; }
+    .nbtn.mn-btn {
+      color: #a8d4b8;
+      border-color: #1a3d28;
+    }
+    .nbtn.mn-btn:hover { background: rgba(30, 90, 50, 0.6); color: #d4f0e0; border-color: #2a6040; }
+
+    /* ── Back-to-BVI button (hidden until MN view) ── */
+    #back-btn {
+      display: none;
+      position: absolute;
+      top: 58px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1001;
+      background: rgba(30, 90, 50, 0.92);
+      color: #c0f0d0;
+      border: 1.5px solid #3a9060;
+      padding: 8px 18px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: 'Georgia', serif;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.45);
+      backdrop-filter: blur(5px);
       transition: all 0.2s;
       white-space: nowrap;
-      backdrop-filter: blur(4px);
     }
-    .btn:hover { background: rgba(42, 100, 150, 0.75); color: #fff; border-color: #4a8cb8; }
-    .btn.on { border-color: #64b4ff; color: #7ec8e3; background: rgba(30, 80, 130, 0.55); }
+    #back-btn:hover { background: rgba(40, 120, 65, 0.95); color: #fff; }
 
-    /* ── Leaflet popup theming ── */
+    /* ── Popup theming ── */
     .leaflet-popup-content-wrapper {
-      background: rgba(8, 18, 32, 0.96) !important;
-      color: #e8d5a3 !important;
-      border: 1px solid #2a6496 !important;
-      border-radius: 7px !important;
-      box-shadow: 0 4px 22px rgba(0,0,0,0.55) !important;
+      background: rgba(6, 15, 28, 0.97) !important;
+      color: #e0d0a8 !important;
+      border: 1px solid #1e4d78 !important;
+      border-radius: 8px !important;
+      box-shadow: 0 5px 24px rgba(0,0,0,0.6) !important;
     }
-    .leaflet-popup-tip { background: #2a6496 !important; }
-    .leaflet-popup-content { margin: 10px 13px !important; }
-    .p-name  { font-size: 13px; font-weight: bold; color: #ffd700; }
-    .p-isle  { font-size: 10.5px; color: #7ec8e3; margin: 2px 0 4px; }
-    .p-desc  { font-size: 11px; color: #b8ccd8; line-height: 1.45; }
+    .leaflet-popup-tip { background: #1e4d78 !important; }
+    .leaflet-popup-content { margin: 11px 14px !important; min-width: 160px; }
+    .p-name { font-size: 13px; font-weight: bold; color: #ffd700; line-height: 1.3; }
+    .p-isle { font-size: 10.5px; color: #7ec8e3; margin: 3px 0 5px; }
+    .p-desc { font-size: 11.5px; color: #a8c0d0; line-height: 1.5; }
 
     /* ── WBL label tooltip ── */
     .leaflet-tooltip.wbl-lbl {
-      background: rgba(40, 110, 200, 0.88) !important;
-      color: #fff !important;
-      border: none !important;
+      background: rgba(30, 90, 180, 0.90) !important;
+      color: #e8f4ff !important;
+      border: 1px solid rgba(100, 180, 255, 0.4) !important;
       border-radius: 5px !important;
-      font-size: 11px !important;
+      font-size: 11.5px !important;
       font-weight: bold !important;
-      padding: 4px 9px !important;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.45) !important;
-      pointer-events: none;
+      padding: 5px 10px !important;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5) !important;
+      pointer-events: none !important;
+      text-align: center;
     }
     .leaflet-tooltip.wbl-lbl::before { display: none !important; }
+
+    /* ── Leaflet overrides ── */
+    .leaflet-control-zoom {
+      border: 1px solid #1e4d78 !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+    }
+    .leaflet-control-zoom a {
+      background: rgba(6, 15, 28, 0.92) !important;
+      color: #7ec8e3 !important;
+      border-bottom-color: #1e4d78 !important;
+    }
+    .leaflet-control-zoom a:hover { background: rgba(30, 77, 120, 0.9) !important; color: #fff !important; }
+    .leaflet-control-attribution { font-size: 9px !important; opacity: 0.65; }
+    .leaflet-bar { border: none !important; }
+
+    /* ── WBL pulse on load ── */
+    @keyframes lakePulse {
+      0%   { opacity: 0; }
+      60%  { opacity: 1; }
+      80%  { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    .lake-pulse { animation: lakePulse 1.6s ease forwards; }
+
+    /* ── Mobile adjustments ── */
+    @media (max-width: 600px) {
+      #header h1 { font-size: 0.9rem; }
+      #panel { width: 195px; top: 52px; }
+      #lake-toggle-wrap { top: 52px; left: 46px; }
+      #btnToggle { font-size: 11px; padding: 6px 11px; }
+      #nav-bar { bottom: 28px; gap: 3px; padding: 5px 6px; }
+      .nbtn { font-size: 10.5px; padding: 4px 8px; }
+      .nav-label { display: none; }
+    }
   </style>
 </head>
 <body>
 
+<!-- Header -->
 <div id="header">
-  <div id="header-left">
-    <h1>&#9875; White Bear Lake &nbsp;vs.&nbsp; British Virgin Islands</h1>
-    <p>Interactive scale comparison — the blue outline shows White Bear Lake overlaid at true geographic scale</p>
-  </div>
-  <div id="header-right">
-    Click any marker for details<br>
-    Scroll or pinch to zoom
+  <span class="anchor-glyph">&#9875;</span>
+  <div>
+    <h1>White Bear Lake &nbsp;vs.&nbsp; British Virgin Islands</h1>
+    <p>The blue outline shows White Bear Lake overlaid at true geographic scale on the BVI boating waters</p>
   </div>
 </div>
 
+<!-- Map -->
 <div id="map"></div>
 
-<!-- Info Panel -->
-<div id="info-panel">
-  <h3>Scale Facts</h3>
-  <div class="stat"><span class="sl">White Bear Lake area</span>     <span class="sv">~2,400 acres</span></div>
-  <div class="stat"><span class="sl">WBL max length (N–S)</span>     <span class="sv">~4.5 mi / 7 km</span></div>
-  <div class="stat"><span class="sl">WBL max width (E–W)</span>      <span class="sv">~3.5 mi / 5.5 km</span></div>
-  <div class="hr"></div>
-  <div class="stat"><span class="sl">Sir Francis Drake Channel</span><span class="sv">~35 mi / 56 km</span></div>
-  <div class="stat"><span class="sl">BVI boating span (E–W)</span>  <span class="sv">~55 mi / 88 km</span></div>
-  <div class="stat"><span class="sl">Typical hop between islands</span><span class="sv">2 – 12 miles</span></div>
-  <div class="hr"></div>
-  <div class="note"><span class="swatch"></span>Blue outline = White Bear Lake at true scale, centered on the Drake Channel</div>
+<!-- Collapsible info + legend panel -->
+<div id="panel">
+  <div id="panel-header" onclick="togglePanel()">
+    <span id="panel-title">Scale &amp; Legend</span>
+    <span id="panel-toggle-icon">▾</span>
+  </div>
+  <div id="panel-body">
+    <div class="section-label">White Bear Lake, MN</div>
+    <div class="stat"><span class="sl">Area</span>           <span class="sv">~2,400 acres</span></div>
+    <div class="stat"><span class="sl">Length (N–S)</span>   <span class="sv">~4.5 mi / 7 km</span></div>
+    <div class="stat"><span class="sl">Width (E–W)</span>    <span class="sv">~3.5 mi / 5.5 km</span></div>
+    <div class="hr"></div>
+    <div class="section-label">British Virgin Islands</div>
+    <div class="stat"><span class="sl">Drake Channel</span>  <span class="sv">~35 mi / 56 km</span></div>
+    <div class="stat"><span class="sl">BVI span (E–W)</span> <span class="sv">~55 mi / 88 km</span></div>
+    <div class="stat"><span class="sl">Island hops</span>    <span class="sv">2 – 12 miles each</span></div>
+    <div class="hr"></div>
+    <div class="section-label">Legend</div>
+    <div class="leg-row"><span class="leg-lake"></span>White Bear Lake overlay</div>
+    <div class="leg-row"><span class="leg-dash"></span>Sailing routes</div>
+    <div class="leg-row"><span class="dot dot-gold"></span>Anchorage / bay</div>
+    <div class="leg-row"><span class="dot dot-blue"></span>Marina / harbour</div>
+    <div class="leg-row"><span class="dot dot-teal"></span>Must-see attraction</div>
+  </div>
 </div>
 
-<!-- Legend -->
-<div id="legend">
-  <div class="leg-row"><span class="leg-lake"></span> White Bear Lake (true scale)</div>
-  <div class="leg-row"><span class="leg-dash"></span> Sailing routes</div>
-  <div class="leg-row"><span class="dot-gold"></span>  Anchorage / attraction</div>
-  <div class="leg-row"><span class="dot-blue"></span>  Marina / harbour</div>
-  <div class="leg-row"><span class="dot-teal"></span>  Special attraction</div>
+<!-- Lake overlay toggle (standalone, prominent) -->
+<div id="lake-toggle-wrap">
+  <button id="btnToggle" onclick="toggleLake()">
+    <span class="toggle-dot"></span>
+    White Bear Lake overlay: ON
+  </button>
 </div>
 
-<!-- Controls -->
-<div id="controls">
-  <button class="btn on" id="btnToggle" onclick="toggleLake()">Hide Lake Overlay</button>
-  <button class="btn" onclick="map.setView([18.43, -64.54], 10)">Full BVI</button>
-  <button class="btn" onclick="map.setView([18.39, -64.62], 11)">Drake Channel</button>
-  <button class="btn" onclick="map.setView([18.46, -64.75], 12)">Jost Van Dyke</button>
-  <button class="btn" onclick="map.setView([18.44, -64.43], 12)">Virgin Gorda</button>
-  <button class="btn" onclick="map.setView([18.73, -64.34], 11)">Anegada</button>
+<!-- Back-to-BVI button (shown when viewing Minnesota) -->
+<button id="back-btn" onclick="backToBVI()">← Back to BVI</button>
+
+<!-- Navigation bar (bottom-center) -->
+<div id="nav-bar">
+  <span class="nav-label">Go to</span>
+  <button class="nbtn active" id="nav-bvi"    onclick="navTo('bvi')">Full BVI</button>
+  <button class="nbtn"        id="nav-drake"  onclick="navTo('drake')">Drake Channel</button>
+  <button class="nbtn"        id="nav-jvd"    onclick="navTo('jvd')">Jost Van Dyke</button>
+  <button class="nbtn"        id="nav-vg"     onclick="navTo('vg')">Virgin Gorda</button>
+  <button class="nbtn"        id="nav-aneg"   onclick="navTo('aneg')">Anegada</button>
+  <button class="nbtn mn-btn" id="nav-mn"     onclick="navTo('mn')">📍 White Bear Lake, MN</button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// ─────────────────────────────────────────────
-//  MAP SETUP
-// ─────────────────────────────────────────────
+// ── Map initialisation ──────────────────────────────────────────────────────
 const map = L.map('map', {
   center: [18.43, -64.54],
   zoom: 10,
   zoomControl: true
 });
 
-// Esri Ocean basemap — beautiful nautical look
+// Esri Ocean basemap
 L.tileLayer(
   'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
   {
-    attribution: 'Basemap &copy; Esri &mdash; GEBCO, NOAA, National Geographic',
+    attribution: 'Basemap &copy; Esri &mdash; GEBCO, NOAA, Nat. Geo.',
     maxNativeZoom: 13,
     maxZoom: 19
   }
 ).addTo(map);
 
-// OpenSeaMap nautical overlay (depth contours, buoys, anchorage icons)
+// OpenSeaMap nautical overlay
 L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="http://www.openseamap.org">OpenSeaMap</a>',
   maxZoom: 19,
-  opacity: 0.65
+  opacity: 0.6
 }).addTo(map);
 
 L.control.scale({ metric: true, imperial: true }).addTo(map);
 
 
-// ─────────────────────────────────────────────
-//  WHITE BEAR LAKE — real polygon, then translated
-//  to BVI at correct geographic scale
-// ─────────────────────────────────────────────
-
-// Approximate outline of White Bear Lake, MN (lat/lng, clockwise from north)
-// Lake is ~7 km N-S × ~5.5 km E-W, centered ~45.067 °N 93.000 °W
+// ── White Bear Lake polygon ─────────────────────────────────────────────────
+// Real outline (lat/lng, clockwise from north tip) — ~7 km N-S × ~5.5 km E-W
 const WBL_POLY = [
-  [45.097, -93.002],   // North tip
-  [45.092, -92.983],   // NNE
-  [45.085, -92.969],   // NE
-  [45.073, -92.961],   // East
-  [45.062, -92.961],   // SE
-  [45.050, -92.969],   // SSE
-  [45.040, -92.982],   // South
-  [45.037, -92.998],   // SSW
-  [45.042, -93.014],   // SW
-  [45.053, -93.026],   // WSW
-  [45.066, -93.030],   // West
-  [45.079, -93.026],   // NW
-  [45.088, -93.017],   // NNW
-  [45.094, -93.008],   // North-NW
+  [45.097, -93.002],
+  [45.092, -92.983],
+  [45.085, -92.969],
+  [45.073, -92.961],
+  [45.062, -92.961],
+  [45.050, -92.969],
+  [45.040, -92.982],
+  [45.037, -92.998],
+  [45.042, -93.014],
+  [45.053, -93.026],
+  [45.066, -93.030],
+  [45.079, -93.026],
+  [45.088, -93.017],
+  [45.094, -93.008],
 ];
 
-const WBL_CTR = [45.067, -93.000];  // center of lake
-const BVI_CTR = [18.420, -64.610];  // drop point in Drake Channel
+const WBL_CTR = [45.067, -93.000];
+const BVI_CTR = [18.420, -64.610];   // centered in Drake Channel
 
-// Translate WBL polygon to BVI preserving true distances
+// Preserve true distances when translating between latitudes
 function translateToBVI(poly, src, dst) {
-  const toRad = d => d * Math.PI / 180;
-  const M = 111320; // metres per degree of latitude
-  const srcCos = Math.cos(toRad(src[0]));
-  const dstCos = Math.cos(toRad(dst[0]));
-  return poly.map(([lat, lng]) => {
-    const dy = (lat - src[0]) * M;
-    const dx = (lng - src[1]) * M * srcCos;
-    return [dst[0] + dy / M, dst[1] + dx / (M * dstCos)];
-  });
+  const M = 111320;
+  const srcCos = Math.cos(src[0] * Math.PI / 180);
+  const dstCos = Math.cos(dst[0] * Math.PI / 180);
+  return poly.map(([lat, lng]) => [
+    dst[0] + (lat - src[0]) * M / M,
+    dst[1] + (lng - src[1]) * M * srcCos / (M * dstCos)
+  ]);
 }
 
-const wblAtBVI = translateToBVI(WBL_POLY, WBL_CTR, BVI_CTR);
-
-let lakeLayer = L.polygon(wblAtBVI, {
-  color:       '#64b4ff',
-  fillColor:   '#4499dd',
-  fillOpacity: 0.32,
-  weight:      2.5,
-  dashArray:   '10, 6'
+// ── BVI overlay — translated lake at true scale ──
+let lakeLayer = L.polygon(translateToBVI(WBL_POLY, WBL_CTR, BVI_CTR), {
+  color: '#64b4ff',
+  fillColor: '#4499dd',
+  fillOpacity: 0.30,
+  weight: 2.5,
+  dashArray: '10, 6',
+  className: 'lake-pulse'
 }).addTo(map);
 
 lakeLayer.bindTooltip(
-  'White Bear Lake<br><span style="font-weight:normal;font-size:10px">true scale overlay</span>',
-  { permanent: true, direction: 'center', className: 'wbl-lbl' }
+  'White Bear Lake<br><span style="font-size:10px;font-weight:normal;opacity:0.9">overlaid at true scale</span>',
+  { permanent: true, direction: 'center', className: 'wbl-lbl', interactive: false }
+);
+
+// ── Real WBL in Minnesota — always on map, visible when you fly there ──
+let wblMnLayer = L.polygon(WBL_POLY, {
+  color: '#64b4ff',
+  fillColor: '#4499dd',
+  fillOpacity: 0.50,
+  weight: 2.5,
+}).addTo(map);
+
+wblMnLayer.bindTooltip(
+  'White Bear Lake, MN<br><span style="font-size:10px;font-weight:normal;opacity:0.9">actual location</span>',
+  { permanent: true, direction: 'top', className: 'wbl-lbl', interactive: false }
 );
 
 
-// ─────────────────────────────────────────────
-//  BVI POINTS OF INTEREST
-// ─────────────────────────────────────────────
+// ── BVI Points of Interest ──────────────────────────────────────────────────
 const SPOTS = [
   // Tortola
-  { n: 'Road Town',           i: 'Tortola',       lat: 18.4178, lng: -64.6197, t: 'marina',  d: 'Capital of the BVI — main customs, marinas, provisioning, and ferry hub.' },
-  { n: 'Cane Garden Bay',     i: 'Tortola',       lat: 18.4483, lng: -64.6647, t: 'anchor',  d: 'One of the BVI\'s most beautiful bays. Calm anchorage, beach bars, and stunning sunsets.' },
-  { n: "Soper's Hole",        i: 'W. End Tortola',lat: 18.3833, lng: -64.7033, t: 'marina',  d: 'Colourful West End marina. Ferry to St John USVI. Great jumping-off point.' },
-  { n: 'Trellis Bay',         i: 'Beef Island',   lat: 18.4583, lng: -64.5333, t: 'anchor',  d: 'By BVI Airport. Famous for full-moon fire-ball parties. Easy overnight anchorage.' },
-  { n: 'East End, Tortola',   i: 'Tortola',       lat: 18.4217, lng: -64.5267, t: 'anchor',  d: 'Scenic east end bays with good holding and fewer crowds.' },
+  { n:'Road Town',              i:'Tortola',        lat:18.4178, lng:-64.6197, t:'marina',  d:'Capital of the BVI — main customs, provisioning, marinas, and ferry hub.' },
+  { n:'Cane Garden Bay',        i:'Tortola',        lat:18.4483, lng:-64.6647, t:'anchor',  d:'One of the BVI\'s most beautiful bays. Calm anchorage, beach bars, and stunning sunsets.' },
+  { n:"Soper's Hole",           i:'W. End Tortola', lat:18.3833, lng:-64.7033, t:'marina',  d:'Colourful West End marina. Ferry to St John USVI. Great start or end to a BVI trip.' },
+  { n:'Trellis Bay',            i:'Beef Island',    lat:18.4583, lng:-64.5333, t:'anchor',  d:'Right by BVI Airport. Famous for full-moon fire-ball parties. Easy overnight stop.' },
+  { n:'East End Bays',          i:'Tortola',        lat:18.4217, lng:-64.5267, t:'anchor',  d:'Scenic, less-crowded east-end anchorages with good holding.' },
   // Jost Van Dyke
-  { n: 'White Bay',           i: 'Jost Van Dyke', lat: 18.4583, lng: -64.7583, t: 'anchor',  d: 'Home of the legendary Soggy Dollar Bar — birthplace of the Painkiller cocktail. Stunning white-sand beach.' },
-  { n: 'Great Harbour',       i: 'Jost Van Dyke', lat: 18.4667, lng: -64.7500, t: 'marina',  d: 'JVD\'s main harbour and customs check-in. Foxy\'s Bar is a BVI institution.' },
-  { n: 'Diamond Cay / Sandy Spit',i:'Jost Van Dyke',lat:18.4783,lng:-64.7117, t: 'special', d: 'Tiny uninhabited sandbar — exactly what you picture when you imagine the Caribbean.' },
+  { n:'White Bay',              i:'Jost Van Dyke',  lat:18.4583, lng:-64.7583, t:'anchor',  d:'Home of the legendary Soggy Dollar Bar — birthplace of the Painkiller cocktail.' },
+  { n:'Great Harbour',          i:'Jost Van Dyke',  lat:18.4667, lng:-64.7500, t:'marina',  d:'JVD\'s main harbour and customs check-in. Foxy\'s Bar is a beloved BVI institution.' },
+  { n:'Diamond Cay / Sandy Spit',i:'Jost Van Dyke', lat:18.4783, lng:-64.7117, t:'special', d:'Tiny uninhabited sandbar — exactly what you picture when you imagine the Caribbean.' },
   // Norman Island
-  { n: 'The Bight',           i: 'Norman Island', lat: 18.3200, lng: -64.6200, t: 'anchor',  d: 'Rumoured inspiration for Treasure Island. Floating bar "Willy T". Sea caves excellent for snorkelling.' },
-  // Salt Island
-  { n: 'Salt Island',         i: 'Salt Island',   lat: 18.3817, lng: -64.5167, t: 'special', d: 'Site of the RMS Rhone wreck (1867) — one of the Caribbean\'s best SCUBA dives.' },
-  // Dead Chest
-  { n: 'Dead Chest Island',   i: 'Dead Chest',    lat: 18.3783, lng: -64.5383, t: 'anchor',  d: '"Fifteen men on a dead man\'s chest — yo-ho-ho and a bottle of rum." Great snorkelling.' },
-  // Cooper Island
-  { n: 'Cooper Island',       i: 'Cooper Island', lat: 18.3817, lng: -64.5150, t: 'anchor',  d: 'Eco beach club with a popular bar, good mooring field, and vibrant reef snorkelling.' },
-  // Peter Island
-  { n: 'Peter Island',        i: 'Peter Island',  lat: 18.3667, lng: -64.5617, t: 'anchor',  d: 'Beautiful private island resort. Great Harbour and Deadman\'s Bay are lovely anchorages.' },
+  { n:'The Bight',              i:'Norman Island',  lat:18.3200, lng:-64.6200, t:'anchor',  d:'Rumoured inspiration for Treasure Island. Floating bar "Willy T". Excellent sea-cave snorkelling.' },
+  // Southern islands
+  { n:'Salt Island',            i:'Salt Island',    lat:18.3817, lng:-64.5167, t:'special', d:'Site of the RMS Rhone wreck (1867) — one of the Caribbean\'s best SCUBA dives.' },
+  { n:'Dead Chest Island',      i:'Dead Chest',     lat:18.3783, lng:-64.5383, t:'anchor',  d:'"Fifteen men on a dead man\'s chest — yo-ho-ho and a bottle of rum." Great snorkelling.' },
+  { n:'Cooper Island',          i:'Cooper Island',  lat:18.3817, lng:-64.5150, t:'anchor',  d:'Popular eco beach club, mooring field, and vibrant reef snorkelling.' },
+  { n:'Peter Island',           i:'Peter Island',   lat:18.3667, lng:-64.5617, t:'anchor',  d:'Private island resort with beautiful anchorages at Deadman\'s Bay and Great Harbour.' },
   // Virgin Gorda
-  { n: 'The Baths',           i: 'Virgin Gorda',  lat: 18.4133, lng: -64.4317, t: 'special', d: 'Iconic giant granite boulders forming sea grottos, tunnels, and hidden pools. Must-visit.' },
-  { n: 'Spanish Town',        i: 'Virgin Gorda',  lat: 18.4433, lng: -64.4300, t: 'marina',  d: 'Virgin Gorda\'s main town and yacht harbour. Great for provisioning.' },
-  { n: 'North Sound',         i: 'Virgin Gorda',  lat: 18.5067, lng: -64.3567, t: 'anchor',  d: 'Large protected sound — former home of the Bitter End Yacht Club. Spectacular sailing base.' },
-  { n: 'Leverick Bay',        i: 'Virgin Gorda',  lat: 18.4933, lng: -64.3817, t: 'marina',  d: 'Marina inside North Sound. Good provisioning and a lively bar/restaurant.' },
-  // Marina Cay
-  { n: 'Marina Cay',          i: 'Marina Cay',    lat: 18.4683, lng: -64.5217, t: 'anchor',  d: 'Tiny coral island with Pusser\'s Rum bar. Famous from Robb White\'s "Our Virgin Island" book.' },
-  // Anegada
-  { n: 'Anegada',             i: 'Anegada',       lat: 18.7300, lng: -64.3383, t: 'anchor',  d: 'Flat coral island — only 28 ft above sea level. Famous for lobster dinners, flamingos, and Horseshoe Reef.' },
+  { n:'The Baths',              i:'Virgin Gorda',   lat:18.4133, lng:-64.4317, t:'special', d:'Iconic giant granite boulders forming sea grottos, tunnels, and hidden pools. Must-visit.' },
+  { n:'Spanish Town',           i:'Virgin Gorda',   lat:18.4433, lng:-64.4300, t:'marina',  d:'Virgin Gorda\'s main town and yacht harbour. Good provisioning.' },
+  { n:'North Sound',            i:'Virgin Gorda',   lat:18.5067, lng:-64.3567, t:'anchor',  d:'Large protected sound — former home of the Bitter End Yacht Club. Spectacular sailing base.' },
+  { n:'Leverick Bay',           i:'Virgin Gorda',   lat:18.4933, lng:-64.3817, t:'marina',  d:'Marina inside North Sound with good provisioning and a lively restaurant.' },
+  // Outer islands
+  { n:'Marina Cay',             i:'Marina Cay',     lat:18.4683, lng:-64.5217, t:'anchor',  d:'Tiny coral island; Pusser\'s Rum bar. Made famous by "Our Virgin Island" (1953).' },
+  { n:'Anegada',                i:'Anegada',        lat:18.7300, lng:-64.3383, t:'anchor',  d:'Flat coral island, only 28 ft high. Famous for lobster dinners, flamingos, and Horseshoe Reef.' },
 ];
 
 function mkIcon(color, glow) {
   return L.divIcon({
-    html: `<div style="
-      width:15px;height:15px;border-radius:50%;
-      background:${color};
-      border:2px solid rgba(255,255,255,0.82);
-      box-shadow:0 0 7px ${glow},0 1px 4px rgba(0,0,0,0.55);
-    "></div>`,
-    iconSize: [15, 15], iconAnchor: [7, 7], className: ''
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid rgba(255,255,255,0.85);box-shadow:0 0 8px ${glow},0 1px 4px rgba(0,0,0,0.6)"></div>`,
+    iconSize: [16, 16], iconAnchor: [8, 8], className: ''
   });
 }
-
 const ICONS = {
   anchor:  mkIcon('#ffd700', '#ffd70099'),
   marina:  mkIcon('#00b4d8', '#00b4d899'),
@@ -363,70 +487,104 @@ const ICONS = {
 SPOTS.forEach(s => {
   L.marker([s.lat, s.lng], { icon: ICONS[s.t] || ICONS.anchor })
     .addTo(map)
-    .bindPopup(`
-      <div class="p-name">${s.n}</div>
-      <div class="p-isle">${s.i}</div>
-      <div class="p-desc">${s.d}</div>
-    `);
+    .bindPopup(`<div class="p-name">${s.n}</div><div class="p-isle">${s.i}</div><div class="p-desc">${s.d}</div>`);
 });
 
 
-// ─────────────────────────────────────────────
-//  SAILING ROUTES (dashed lines)
-// ─────────────────────────────────────────────
-const RS = { color: '#7ecfef', weight: 1.6, opacity: 0.42, dashArray: '10, 8' };
+// ── Sailing routes ──────────────────────────────────────────────────────────
+const RS = { color: '#7ecfef', weight: 1.8, opacity: 0.40, dashArray: '10, 8' };
 
-// Sir Francis Drake Channel (main E–W highway)
 L.polyline([
-  [18.382, -64.710], [18.387, -64.662],
-  [18.395, -64.618], [18.391, -64.572],
-  [18.384, -64.530], [18.390, -64.482],
-  [18.416, -64.438]
-], RS).addTo(map)
-  .bindTooltip('Sir Francis Drake Channel', { direction: 'bottom', opacity: 0.88 });
+  [18.382,-64.710],[18.387,-64.662],[18.395,-64.618],
+  [18.391,-64.572],[18.384,-64.530],[18.390,-64.482],[18.416,-64.438]
+], RS).addTo(map).bindTooltip('Sir Francis Drake Channel', { direction:'bottom', opacity:0.9 });
 
-// North Tortola passage
 L.polyline([
-  [18.467, -64.703], [18.462, -64.660],
-  [18.459, -64.618], [18.459, -64.572],
-  [18.461, -64.530]
-], RS).addTo(map)
-  .bindTooltip('North Tortola Passage', { direction: 'top', opacity: 0.88 });
+  [18.467,-64.703],[18.462,-64.660],[18.459,-64.618],
+  [18.459,-64.572],[18.461,-64.530]
+], RS).addTo(map).bindTooltip('North Tortola Passage', { direction:'top', opacity:0.9 });
 
-// Jost Van Dyke → Road Town
 L.polyline([
-  [18.467, -64.752], [18.447, -64.728],
-  [18.422, -64.706], [18.418, -64.667],
-  [18.418, -64.622]
-], RS).addTo(map)
-  .bindTooltip('Jost Van Dyke → Road Town', { direction: 'left', opacity: 0.88 });
+  [18.467,-64.752],[18.447,-64.728],[18.422,-64.706],
+  [18.418,-64.667],[18.418,-64.622]
+], RS).addTo(map).bindTooltip('Jost Van Dyke → Road Town', { direction:'left', opacity:0.9 });
 
-// Drake Channel → Anegada passage
 L.polyline([
-  [18.416, -64.438], [18.460, -64.385],
-  [18.540, -64.358], [18.650, -64.342],
-  [18.730, -64.338]
-], { ...RS, opacity: 0.30 }).addTo(map)
-  .bindTooltip('Anegada Passage', { direction: 'right', opacity: 0.88 });
+  [18.416,-64.438],[18.460,-64.385],[18.540,-64.358],
+  [18.650,-64.342],[18.730,-64.338]
+], { ...RS, opacity: 0.28 }).addTo(map).bindTooltip('Anegada Passage', { direction:'right', opacity:0.9 });
 
 
-// ─────────────────────────────────────────────
-//  TOGGLE CONTROL
-// ─────────────────────────────────────────────
+// ── Navigation ─────────────────────────────────────────────────────────────
+const NAV_VIEWS = {
+  bvi:   { center:[18.43,-64.54], zoom:10 },
+  drake: { center:[18.39,-64.62], zoom:11 },
+  jvd:   { center:[18.46,-64.75], zoom:12 },
+  vg:    { center:[18.44,-64.40], zoom:12 },
+  aneg:  { center:[18.73,-64.34], zoom:11 },
+  mn:    { center:[45.067,-93.000], zoom:12 },
+};
+
+let inMN = false;
+
+function navTo(key) {
+  const v = NAV_VIEWS[key];
+  if (!v) return;
+
+  // Update active nav button
+  document.querySelectorAll('.nbtn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('nav-' + key);
+  if (btn) btn.classList.add('active');
+
+  map.flyTo(v.center, v.zoom, { duration: 1.4, easeLinearity: 0.4 });
+
+  if (key === 'mn') {
+    inMN = true;
+    document.getElementById('back-btn').style.display = 'block';
+  } else {
+    inMN = false;
+    document.getElementById('back-btn').style.display = 'none';
+  }
+}
+
+function backToBVI() {
+  navTo('bvi');
+}
+
+
+// ── Lake overlay toggle ─────────────────────────────────────────────────────
 let lakeOn = true;
 
 function toggleLake() {
   const btn = document.getElementById('btnToggle');
   if (lakeOn) {
     map.removeLayer(lakeLayer);
-    btn.textContent = 'Show Lake Overlay';
-    btn.classList.remove('on');
+    btn.innerHTML = '<span class="toggle-dot"></span>White Bear Lake overlay: OFF';
+    btn.classList.add('off');
   } else {
     map.addLayer(lakeLayer);
-    btn.textContent = 'Hide Lake Overlay';
-    btn.classList.add('on');
+    btn.innerHTML = '<span class="toggle-dot"></span>White Bear Lake overlay: ON';
+    btn.classList.remove('off');
   }
   lakeOn = !lakeOn;
+}
+
+
+// ── Panel collapse ──────────────────────────────────────────────────────────
+let panelOpen = true;
+
+function togglePanel() {
+  panelOpen = !panelOpen;
+  const body = document.getElementById('panel-body');
+  const icon = document.getElementById('panel-toggle-icon');
+  body.style.display = panelOpen ? '' : 'none';
+  icon.textContent = panelOpen ? '▾' : '▸';
+  icon.style.transform = panelOpen ? 'rotate(0deg)' : 'rotate(0deg)';
+}
+
+// Collapse panel by default on small screens
+if (window.innerWidth < 600) {
+  togglePanel();
 }
 </script>
 </body>
