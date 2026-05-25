@@ -110,6 +110,11 @@
     #back-btn { display: none; position: absolute; top: 58px; left: 50%; transform: translateX(-50%); z-index: 1001; background: rgba(30,90,50,0.92); color: #c0f0d0; border: 1.5px solid #3a9060; padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: 12px; font-family: 'Georgia', serif; box-shadow: 0 3px 14px rgba(0,0,0,0.45); backdrop-filter: blur(5px); }
     #back-btn:hover { background: rgba(40,120,65,0.95); color: #fff; }
 
+    /* Split mode: keep UI panels over the BVI (left) half */
+    #maps-wrapper.split ~ #panel    { right: calc(50% + 10px); }
+    #maps-wrapper.split ~ #nav-bar  { left: 25%; }
+    #maps-wrapper.split ~ #back-btn { left: 25%; }
+
     /* Leaflet popup */
     .leaflet-popup-content-wrapper { background: rgba(6,15,28,0.97) !important; color: #e0d0a8 !important; border: 1px solid #1e4d78 !important; border-radius: 8px !important; box-shadow: 0 5px 24px rgba(0,0,0,0.6) !important; }
     .leaflet-popup-tip { background: #1e4d78 !important; }
@@ -402,11 +407,11 @@ function moveDrag(latlng) {
   if (!dragging || !lastLL) return;
   lgShift(latlng.lat-lastLL.lat, latlng.lng-lastLL.lng);
   lastLL = latlng;
+  if (tilingGroup.length) clearTiling();
   if (!hasMoved) {
     hasMoved = true;
     document.getElementById('btnReset').style.display = '';
     hideDragHint();
-    clearTiling();
   }
 }
 
@@ -447,6 +452,7 @@ function hideDragHint() { hintEl.style.opacity='0'; setTimeout(() => hintEl.styl
 //  Ghost copies of WBL showing "how many fit" in a given area
 // ═══════════════════════════════════════════════════════════════
 const tilingGroup = [];
+let tilingTimer = null;
 
 function showTiling(center, rows, cols) {
   clearTiling();
@@ -516,7 +522,9 @@ function dropPreset(key) {
   map.flyTo(p.flyTo, p.zoom, { duration:1.5, easeLinearity:0.4 });
   document.querySelectorAll('.nbtn').forEach(b => b.classList.remove('active'));
   clearTiling();
-  if (p.tiling) setTimeout(() => showTiling(p.tiling.center, p.tiling.rows, p.tiling.cols), 1700);
+  clearTimeout(tilingTimer);
+  tilingTimer = null;
+  if (p.tiling) tilingTimer = setTimeout(() => showTiling(p.tiling.center, p.tiling.rows, p.tiling.cols), 1700);
 }
 
 
@@ -608,6 +616,8 @@ function resetLake() {
   mainLayer.setLatLngs(translatePoly(WBL_MAIN, WBL_CTR, BVI_CTR));
   manitouLayer.setLatLngs(translatePoly(MANITOU, WBL_CTR, BVI_CTR));
   lakeGroup.filter(l => typeof l.getLatLngs !== 'function').forEach(m => { if (m._origBVI) m.setLatLng(m._origBVI); });
+  clearTimeout(tilingTimer);
+  tilingTimer = null;
   clearTiling();
   hasMoved = false;
   document.getElementById('btnReset').style.display = 'none';
