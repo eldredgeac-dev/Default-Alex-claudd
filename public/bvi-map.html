@@ -298,65 +298,64 @@ L.control.scale({ metric: true, imperial: true }).addTo(map);
 // ═══════════════════════════════════════════════════════════════
 //  WHITE BEAR LAKE COORDINATES
 // ═══════════════════════════════════════════════════════════════
-// Clockwise from North Bay tip — matches actual WBL shoreline features:
-// North Bay arm, west-side constriction, west-shore peninsula concavity,
-// south taper, Manitou Island east-bay, NE shore back to North Bay.
+// White Bear Lake — flask/lightbulb shape:
+// North Bay is a narrow upper arm (~2.3 km wide); the main body below is
+// ~5.5 km wide.  Both the west AND east shores pinch inward at ~45.082
+// to create the visible constriction between the two sections.
 const WBL_MAIN = [
-  // ── North Bay (northern arm) ────────────────────────────────
-  [45.098,-93.001],  // North Bay tip  (northernmost)
-  [45.097,-93.007],  // NW of tip
-  [45.094,-93.012],  // west side of North Bay
-  [45.091,-93.015],
-  [45.087,-93.017],
-  // ── West constriction: North Bay meets main body ─────────────
-  [45.083,-93.019],  // peninsula pinches west shore
-  [45.080,-93.021],  // narrowest NW point
-  // ── Main body — west shore ────────────────────────────────────
-  [45.077,-93.024],
-  [45.073,-93.028],
-  [45.069,-93.031],
-  [45.064,-93.033],  // westernmost extent
-  [45.059,-93.032],
-  [45.053,-93.028],
-  [45.047,-93.024],
-  [45.041,-93.017],  // SW
-  // ── South end ────────────────────────────────────────────────
-  [45.038,-93.009],
-  [45.037,-93.001],  // southernmost
-  [45.038,-92.993],
+  // ── North Bay NW tip ─────────────────────────────────────────
+  [45.097,-93.013],
+  // West side of North Bay going south
+  [45.094,-93.015],
+  [45.091,-93.017],
+  [45.088,-93.018],
+  // ── West constriction — NB pinches into main body ─────────────
+  [45.084,-93.019],
+  [45.082,-93.021],  // west narrowest point of constriction
+  // ── Main body: NW shore fanning out south ─────────────────────
+  [45.079,-93.025],
+  [45.075,-93.029],
+  [45.070,-93.032],
+  [45.064,-93.034],  // westernmost
+  [45.058,-93.032],
+  [45.052,-93.028],
+  [45.045,-93.021],
+  [45.039,-93.014],
+  // ── South ─────────────────────────────────────────────────────
+  [45.037,-93.005],
+  [45.037,-92.997],  // southernmost
+  [45.038,-92.989],
   // ── SE shore ──────────────────────────────────────────────────
-  [45.041,-92.985],
-  [45.046,-92.977],
-  [45.052,-92.970],
-  // ── East shore going north ────────────────────────────────────
-  [45.058,-92.964],
-  [45.063,-92.962],  // east central
-  [45.067,-92.963],
-  // ── Manitou Island bay (east-side concavity) ─────────────────
-  [45.070,-92.965],
-  [45.073,-92.963],
-  [45.076,-92.961],  // easternmost (Manitou area)
-  [45.079,-92.962],
-  [45.082,-92.963],
-  [45.086,-92.966],
-  // ── NE shore back toward North Bay ───────────────────────────
-  [45.089,-92.973],
-  [45.092,-92.981],
-  [45.095,-92.990],
-  [45.097,-92.995],  // NE base of North Bay
-  [45.098,-93.001],  // close — back to tip
+  [45.041,-92.979],
+  [45.047,-92.970],
+  [45.053,-92.963],
+  [45.059,-92.960],
+  [45.065,-92.959],  // easternmost (main body)
+  [45.070,-92.962],
+  [45.074,-92.963],
+  [45.077,-92.963],
+  // ── East constriction — main body shore bends west into NB ────
+  [45.080,-92.969],
+  [45.082,-92.975],  // east narrowest point of constriction
+  [45.085,-92.981],
+  // ── East side of North Bay (narrower) ────────────────────────
+  [45.088,-92.985],
+  [45.091,-92.987],
+  [45.094,-92.988],
+  // ── North Bay NE tip ─────────────────────────────────────────
+  [45.097,-92.989],
 ];
 
 const MANITOU = [
-  [45.076,-92.969],[45.075,-92.966],[45.072,-92.964],[45.069,-92.964],
-  [45.067,-92.966],[45.067,-92.970],[45.069,-92.973],[45.072,-92.974],[45.075,-92.972],
+  [45.076,-92.972],[45.075,-92.969],[45.072,-92.967],[45.069,-92.967],
+  [45.067,-92.969],[45.067,-92.974],[45.069,-92.976],[45.072,-92.977],[45.075,-92.975],
 ];
 
 const WBL_FEATURES = [
-  { lat:45.098, lng:-93.001, label:'North Bay',      dir:'top'    },
+  { lat:45.097, lng:-93.001, label:'North Bay',      dir:'top'    },
   { lat:45.037, lng:-93.001, label:'South Narrows',  dir:'bottom' },
-  { lat:45.064, lng:-93.033, label:'West Bay',       dir:'left'   },
-  { lat:45.074, lng:-92.960, label:'Manitou Island', dir:'right'  },
+  { lat:45.064, lng:-93.034, label:'West Bay',       dir:'left'   },
+  { lat:45.071, lng:-92.972, label:'Manitou Island', dir:'right'  },
 ];
 
 const WBL_CTR = [45.067, -93.000];
