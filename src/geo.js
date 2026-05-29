@@ -3,8 +3,8 @@
  * No DOM, no Leaflet, no side effects — safe to import in tests.
  */
 
-/** [lat, lng] centroid of White Bear Lake, MN */
-export const WBL_CTR = [45.067, -93.000];
+/** [lat, lng] centroid of White Bear Lake, MN (computed from surveyed shoreline) */
+export const WBL_CTR = [45.07769, -92.98759];
 
 /** [lat, lng] default BVI drop point (mid Drake Channel) */
 export const BVI_CTR = [18.420, -64.610];
